@@ -50,6 +50,9 @@ class Mundo1Scene extends Phaser.Scene {
 
   create() {
     try {
+      // Configurar el mundo del juego para que sea más largo
+      this.physics.world.setBounds(0, 0, 3200, 600); // Mapa 4 veces más largo
+
       // 3. Jugador
       this.player = this.physics.add.sprite(100, 300, 'idle');
       this.player.setScale(1.5);
@@ -57,13 +60,18 @@ class Mundo1Scene extends Phaser.Scene {
       this.player.setCollideWorldBounds(true);
       this.player.body.setGravityY(300);
 
-      // Suelo visual
-      this.ground = this.add.tileSprite(0, 605, 800, 32, 'ground');
+      // Configurar la cámara para seguir al jugador
+      this.cameras.main.setBounds(0, 0, 3200, 600);
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+      this.cameras.main.setZoom(1);
+
+      // Suelo visual extendido
+      this.ground = this.add.tileSprite(0, 605, 3200, 32, 'ground');
       this.ground.setOrigin(0, 1);
 
       // Suelo físico invisible para colisión
-      this.groundCollider = this.physics.add.staticSprite(400, 620 - 16, null);
-      this.groundCollider.displayWidth = 800;
+      this.groundCollider = this.physics.add.staticSprite(1600, 620 - 16, null);
+      this.groundCollider.displayWidth = 3200;
       this.groundCollider.displayHeight = 32;
       this.groundCollider.refreshBody();
       this.groundCollider.setVisible(false);
@@ -71,14 +79,27 @@ class Mundo1Scene extends Phaser.Scene {
       // Colisión jugador-suelo
       this.physics.add.collider(this.player, this.groundCollider);
 
-      // Línea para visualizar la hitbox del suelo
-      const hitboxLine = this.add.graphics();
-      hitboxLine.lineStyle(2, 0xff0000, 1); // Rojo, grosor 2
-      hitboxLine.beginPath();
-      hitboxLine.moveTo(0, 620 - 32); // Inicio de la línea (x=0, y=parte superior del suelo)
-      hitboxLine.lineTo(800, 620 - 32); // Fin de la línea (x=800, y=parte superior del suelo)
-      hitboxLine.closePath();
-      hitboxLine.strokePath();
+      // Fondos para dar profundidad (repetidos a lo largo del mapa)
+      this.bgLayers = [
+        { key: 'bg3', depth: -30, speed: 0.7 },
+        { key: 'bg2', depth: -20, speed: 0.8 },
+        { key: 'bg1', depth: -10, speed: 0.9 }
+      ];
+      this.bgImages = {};
+      const fondoWidth = 800;
+      const numFondos = Math.ceil(3200 / fondoWidth) + 1;
+      this.bgLayers.forEach(layer => {
+        this.bgImages[layer.key] = [];
+        for (let i = 0; i < numFondos; i++) {
+          const img = this.add.image(i * fondoWidth + fondoWidth / 2, 300, layer.key);
+          img.setDisplaySize(fondoWidth, 600);
+          img.setDepth(layer.depth);
+          this.bgImages[layer.key].push(img);
+        }
+      });
+
+      // Árboles distribuidos a lo largo del mapa
+      this.createTrees();
 
       // 4. Controles
       this.cursors = this.input.keyboard.addKeys({
@@ -93,7 +114,7 @@ class Mundo1Scene extends Phaser.Scene {
         this.anims.create({
           key: 'idle',
           frames: this.anims.generateFrameNumbers('idle', { start: 0, end: 5 }),
-          frameRate: 10,
+          frameRate: 12,
           repeat: -1
         });
       }
@@ -101,56 +122,66 @@ class Mundo1Scene extends Phaser.Scene {
         this.anims.create({
           key: 'run',
           frames: this.anims.generateFrameNumbers('run', { start: 0, end: 7 }),
-          frameRate: 12,
+          frameRate: 14,
           repeat: -1
         });
       }
       this.player.anims.play('idle', true);
-
-      // Fondos para dar profundidad
-      this.bg3 = this.add.image(400, 300, 'bg3');
-      this.bg3.setDisplaySize(800, 600);
-      this.bg3.setDepth(-30);
-      this.bg2 = this.add.image(400, 300, 'bg2');
-      this.bg2.setDisplaySize(800, 600);
-      this.bg2.setDepth(-20);
-      this.bg = this.add.image(400, 300, 'bg1');
-      this.bg.setDisplaySize(800, 600);
-      this.bg.setDepth(-10);
-
-      // Árboles encima del suelo
-      this.tree1 = this.add.image(150, 605 -32, 'tree1');
-      this.tree1.setOrigin(0.5, 1);
-      this.tree1.setScale(2.5);
-      this.tree1.setDepth(5);
-      this.tree3 = this.add.image(650, 605 -32, 'tree3');
-      this.tree3.setOrigin(0.5, 1);
-      this.tree3.setScale(2.5);
-      this.tree3.setDepth(5);
+      this.player.setDepth(10);
     } catch (error) {
       console.error('Error in game creation:', error);
       this.scene.start('Mundo1Scene');
     }
   }
 
+  createTrees() {
+    // Crear árboles a lo largo del mapa
+    const treePositions = [
+      { x: 150, y: 605 - 32, type: 'tree1' },
+      { x: 650, y: 605 - 32, type: 'tree3' },
+      { x: 1150, y: 605 - 32, type: 'tree1' },
+      { x: 1650, y: 605 - 32, type: 'tree3' },
+      { x: 2150, y: 605 - 32, type: 'tree1' },
+      { x: 2650, y: 605 - 32, type: 'tree3' },
+      { x: 3150, y: 605 - 32, type: 'tree1' }
+    ];
+
+    treePositions.forEach(pos => {
+      const tree = this.add.image(pos.x, pos.y, pos.type);
+      tree.setOrigin(0.5, 1);
+      tree.setScale(3.5);
+      tree.setDepth(5);
+    });
+  }
+
   update() {
     try {
-      // Efecto parallax para los fondos
+      // Efecto parallax para los fondos (repetidos)
       if (this.player) {
-        // this.bg1.tilePositionX = this.player.x * 0.1;
-        // this.bg2.tilePositionX = this.player.x * 0.2;
-        // this.bg3.tilePositionX = this.player.x * 0.3;
+        const cam = this.cameras.main;
+        const fondoWidth = 800;
+        this.bgLayers.forEach(layer => {
+          this.bgImages[layer.key].forEach((img, idx) => {
+            // Calcular la posición x con parallax
+            img.x = (idx * fondoWidth + fondoWidth / 2) - (cam.scrollX * (1 - layer.speed));
+            // Si la imagen sale completamente por la izquierda, la reposiciono al final
+            if (img.x + fondoWidth / 2 < cam.scrollX) {
+              const maxIdx = Math.max(...this.bgImages[layer.key].map(i => i.x));
+              img.x = maxIdx + fondoWidth;
+            }
+          });
+        });
       }
 
       // Lógica de movimiento del jugador
       if (this.cursors.left.isDown) {
-        this.player.body.setVelocityX(-160);
+        this.player.body.setVelocityX(-240);
         this.player.setFlipX(true);
         if (this.player.body.touching.down) {
           this.player.anims.play('run', true);
         }
       } else if (this.cursors.right.isDown) {
-        this.player.body.setVelocityX(160);
+        this.player.body.setVelocityX(240);
         this.player.setFlipX(false);
         if (this.player.body.touching.down) {
           this.player.anims.play('run', true);
