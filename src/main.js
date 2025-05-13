@@ -9,5 +9,6 @@ const pinia = createPinia()
 
 app.use(pinia)
 app.use(router)
+app.provide('router', router)
 app.component('LoadingOverlay', LoadingOverlay)
 app.mount('#app')

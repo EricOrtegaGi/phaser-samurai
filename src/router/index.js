@@ -1,5 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import MenuPrincipal from '@/components/MenuPrincipal.vue'
+import MenuPrincipal from '../components/MenuPrincipal.vue'
+import Game from '../components/Game.vue'
+//import MenuMuerte from '../components/MenuMuerte.vue'
+//import MenuFinal from '../components/MenuFinal.vue'
 
 const routes = [
   {
@@ -8,16 +11,9 @@ const routes = [
     component: MenuPrincipal
   },
   {
-    path: '/game1',
-    name: 'game1',
-    component: () => import(/* webpackChunkName: "mundo1" */ '@/views/Mundo1.vue'),
-    meta: { requiresAuth: false }
-  },
-  {
-    path: '/game2',
-    name: 'game2',
-    component: () => import(/* webpackChunkName: "mundo2" */ '@/views/Mundo2.vue'),
-    meta: { requiresAuth: false }
+    path: '/game',
+    name: 'game',
+    component: Game
   },
   {
     path: '/x',

@@ -4,12 +4,7 @@
       <h1>Samurai Game</h1>
       <div class="menu-buttons">
         <button class="menu-button" @click="irAMundo1">
-          <span class="button-text">Mundo 1</span>
-          <span class="button-description">Aventura básica</span>
-        </button>
-        <button class="menu-button" @click="irAMundo2">
-          <span class="button-text">Mundo 2</span>
-          <span class="button-description">Con enemigos</span>
+          <span class="button-text">Iniciar Partida</span>
         </button>
       </div>
     </div>
@@ -21,11 +16,9 @@ export default {
   name: 'MenuPrincipal',
   methods: {
     irAMundo1() {
-      this.$router.push('/game1');
+      this.$router.push('/game');
     },
-    irAMundo2() {
-      this.$router.push('/game2');
-    }
+
   }
 };
 </script>
