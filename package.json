@@ -7,6 +7,8 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "phaser": "^3.88.2",
+    "pinia": "^3.0.2",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3"
   },

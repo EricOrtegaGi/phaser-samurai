@@ -1,27 +1,60 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import MenuPrincipal from '@/components/MenuPrincipal.vue'
 
 const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView
+    component: MenuPrincipal
   },
   {
-    path: '/about',
-    name: 'about',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: function () {
-      return import(/* webpackChunkName: "about" */ '../views/AboutView.vue')
-    }
+    path: '/game1',
+    name: 'game1',
+    component: () => import(/* webpackChunkName: "mundo1" */ '@/views/Mundo1.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/game2',
+    name: 'game2',
+    component: () => import(/* webpackChunkName: "mundo2" */ '@/views/Mundo2.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/x',
+    name: 'Muerte',
+    component: () => import(/* webpackChunkName: "muerte" */ '@/components/MenuMuerte.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/end',
+    name: 'Final',
+    component: () => import(/* webpackChunkName: "final" */ '@/components/MenuFinal.vue'),
+    meta: { requiresAuth: false }
   }
 ]
 
 const router = createRouter({
   history: createWebHashHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { top: 0 }
+    }
+  }
+})
+
+// Navegación guard para manejar la carga
+router.beforeEach((to, from, next) => {
+  // Mostrar loading state
+  window.dispatchEvent(new CustomEvent('loading-start'))
+  next()
+})
+
+router.afterEach(() => {
+  // Ocultar loading state
+  window.dispatchEvent(new CustomEvent('loading-end'))
 })
 
 export default router
