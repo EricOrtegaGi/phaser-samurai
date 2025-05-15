@@ -7,6 +7,7 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "lodash": "^4.17.21",
     "phaser": "^3.88.2",
     "pinia": "^3.0.2",
     "vue": "^3.2.13",
