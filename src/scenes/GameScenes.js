@@ -224,10 +224,6 @@ export class Mundo1Scene extends Phaser.Scene {
         stroke: '#000000',
         strokeThickness: 4
       }).setOrigin(0, 0).setScrollFactor(0);
-      // Daño de prueba a los 5 segundos
-      this.time.delayedCall(5000, () => {
-        this.takePlayerDamage(1);
-      });
       this.input.on('pointerdown', (pointer) => {
         if (pointer.leftButtonDown() && !this.isAttacking) {
           if (this.player.body.touching.down && !this.attackCooldown) {
@@ -236,9 +232,6 @@ export class Mundo1Scene extends Phaser.Scene {
             this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
             this.player.setVelocityX(0);
             this.attackMelee();
-            this.player.hp -= 100;
-            this.playerHpText.setText(`HP: ${this.player.hp}`);
-            this.takePlayerDamage(0);
             this.time.delayedCall(this.attackCooldownTime, () => {
               this.attackCooldown = false;
             });
@@ -248,9 +241,6 @@ export class Mundo1Scene extends Phaser.Scene {
             this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
             this.player.setVelocityX(0);
             this.attackMeleeAir();
-            this.player.hp -= 100;
-            this.playerHpText.setText(`HP: ${this.player.hp}`);
-            this.takePlayerDamage(0);
             this.time.delayedCall(this.jumpAttackCooldownTime, () => {
               this.jumpAttackCooldown = false;
             });
@@ -320,9 +310,6 @@ export class Mundo1Scene extends Phaser.Scene {
           this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
           this.player.setVelocityX(0);
           this.attackMelee2();
-          this.player.hp -= 100;
-          this.playerHpText.setText(`HP: ${this.player.hp}`);
-          this.takePlayerDamage(0);
           this.time.delayedCall(this.attack2CooldownTime, () => {
             this.attack2Cooldown = false;
           });
@@ -336,9 +323,6 @@ export class Mundo1Scene extends Phaser.Scene {
           this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
           this.player.setVelocityX(0);
           this.attackMelee3();
-          this.player.hp -= 100;
-          this.playerHpText.setText(`HP: ${this.player.hp}`);
-          this.takePlayerDamage(0);
           this.time.delayedCall(this.attack3CooldownTime, () => {
             this.attack3Cooldown = false;
           });
@@ -398,9 +382,27 @@ export class Mundo1Scene extends Phaser.Scene {
       this.ultimateActive = false;
       this.ultimateDuration = 15000;
       this.ultimateTimeLeft = 0;
-      this.ultimateBarBg = this.add.rectangle(700, 40, 200, 20, 0x222222).setOrigin(0, 0).setScrollFactor(0);
-      this.ultimateBar = this.add.rectangle(700, 40, 0, 20, 0xffd700).setOrigin(0, 0).setScrollFactor(0);
-      this.ultimateText = this.add.text(910, 40, '', { font: 'bold 16px Arial', fill: '#fff' }).setOrigin(0, 0).setScrollFactor(0);
+      // Posicionar barra de ultimate centrada arriba
+      const barWidth = 200;
+      const barHeight = 20;
+      const marginTop = 20;
+      const centerX = this.cameras.main.width / 2;
+      this.ultimateBarBg = this.add.rectangle(centerX - barWidth / 2, marginTop, barWidth, barHeight, 0x222222)
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      this.ultimateBar = this.add.rectangle(centerX - barWidth / 2, marginTop, 0, barHeight, 0xffd700)
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      this.ultimateText = this.add.text(centerX + barWidth / 2 + 10, marginTop, '', { font: 'bold 16px Arial', fill: '#fff' })
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      // Actualizar posición al redimensionar
+      this.scale.on('resize', (gameSize) => {
+        const newCenterX = gameSize.width / 2;
+        this.ultimateBarBg.x = newCenterX - barWidth / 2;
+        this.ultimateBar.x = newCenterX - barWidth / 2;
+        this.ultimateText.x = newCenterX + barWidth / 2 + 10;
+      });
       this.input.keyboard.enabled = true;
       this.game.canvas.tabIndex = 0;
       this.game.canvas.focus();
@@ -760,13 +762,16 @@ export class Mundo1Scene extends Phaser.Scene {
     console.log('Estado isAttacking:', this.isAttacking);
     this.player.anims.stop();
     this.isAttacking = false;
+    this.activatingUltimate = true;
+    this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
     this.player.anims.play('shout', true);
     console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
-    
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
       this.ultimateActive = true;
       this.activatingUltimate = false;
+      this.input.keyboard.enabled = true;
       this.ultimateTimeLeft = this.ultimateDuration;
       this.ultimateCharge = 100;
       this.player.anims.play('idle_ult', true);
@@ -1069,9 +1074,6 @@ export class Mundo2Scene extends Phaser.Scene {
             this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
             this.player.setVelocityX(0);
             this.attackMelee();
-            this.player.hp -= 100;
-            this.playerHpText.setText(`HP: ${this.player.hp}`);
-            this.takePlayerDamage(0);
             this.time.delayedCall(this.attackCooldownTime, () => {
               this.attackCooldown = false;
             });
@@ -1081,9 +1083,6 @@ export class Mundo2Scene extends Phaser.Scene {
             this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
             this.player.setVelocityX(0);
             this.attackMeleeAir();
-            this.player.hp -= 100;
-            this.playerHpText.setText(`HP: ${this.player.hp}`);
-            this.takePlayerDamage(0);
             this.time.delayedCall(this.jumpAttackCooldownTime, () => {
               this.jumpAttackCooldown = false;
             });
@@ -1145,9 +1144,6 @@ export class Mundo2Scene extends Phaser.Scene {
           this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
           this.player.setVelocityX(0);
           this.attackMelee2();
-          this.player.hp -= 100;
-          this.playerHpText.setText(`HP: ${this.player.hp}`);
-          this.takePlayerDamage(0);
           this.time.delayedCall(this.attack2CooldownTime, () => {
             this.attack2Cooldown = false;
           });
@@ -1160,9 +1156,6 @@ export class Mundo2Scene extends Phaser.Scene {
           this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
           this.player.setVelocityX(0);
           this.attackMelee3();
-          this.player.hp -= 100;
-          this.playerHpText.setText(`HP: ${this.player.hp}`);
-          this.takePlayerDamage(0);
           this.time.delayedCall(this.attack3CooldownTime, () => {
             this.attack3Cooldown = false;
           });
@@ -1480,13 +1473,16 @@ export class Mundo2Scene extends Phaser.Scene {
     console.log('Estado isAttacking:', this.isAttacking);
     this.player.anims.stop();
     this.isAttacking = false;
+    this.activatingUltimate = true;
+    this.input.keyboard.enabled = false;
+    this.player.setVelocity(0, 0);
     this.player.anims.play('shout', true);
     console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
-    
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
       this.ultimateActive = true;
       this.activatingUltimate = false;
+      this.input.keyboard.enabled = true;
       this.ultimateTimeLeft = this.ultimateDuration;
       this.ultimateCharge = 100;
       this.player.anims.play('idle_ult', true);
@@ -1553,7 +1549,7 @@ export class Mundo2Scene extends Phaser.Scene {
         this.player.body.setVelocityY(-330);
       }
       if (!this.player.body.touching.down && !this.isAttacking && !this.activatingUltimate) {
-        if (this.player.anims.currentAnim && this.player.anims.currentAnim.key === 'idle') {
+        if (this.player.anims.currentAnim.key === 'idle') {
           this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
         }
       }
