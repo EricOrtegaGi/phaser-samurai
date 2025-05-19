@@ -89,6 +89,25 @@ export class Mundo1Scene extends Phaser.Scene {
       margin: 0,
       spacing: 0
     });
+    this.load.spritesheet('nightborne', '/assets/enemies/nightborne/NightBorne.png', {
+      frameWidth: 80,
+      frameHeight: 80,
+      margin: 0,
+      spacing: 0
+    });
+    this.load.spritesheet('nightborne_run', '/assets/enemies/nightborne/NightBorne_run.png', {
+      frameWidth: 80,
+      frameHeight: 80,
+      margin: 0,
+      spacing: 0
+    });
+
+    // Añadir evento para detectar errores de carga del spritesheet nightborne
+    this.load.on('loaderror', (file) => {
+      if (file.key === 'nightborne') {
+        console.error('Error cargando spritesheet nightborne:', file.key, file.url);
+      }
+    });
   }
 
   create() {
@@ -110,7 +129,7 @@ export class Mundo1Scene extends Phaser.Scene {
       this.groundCollider.displayHeight = 32;
       this.groundCollider.refreshBody();
       this.groundCollider.setVisible(false);
-      this.physics.add.collider(this.player, this.groundCollider);
+      this.physics.add.collider(this.player, this.groundCollider); // Colisión del jugador con el suelo
       this.bgLayers = [
         { key: 'bg3', depth: -30, speed: 0.7 },
         { key: 'bg2', depth: -20, speed: 0.8 },
@@ -304,6 +323,7 @@ export class Mundo1Scene extends Phaser.Scene {
         }
       });
       this.input.keyboard.on('keydown-Q', () => {
+        console.log('Tecla Q presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack2Cooldown:', this.attack2Cooldown);
         if (!this.isAttacking && this.player.body.touching.down && !this.attack2Cooldown) {
           this.isAttacking = true;
           this.attack2Cooldown = true;
@@ -317,6 +337,7 @@ export class Mundo1Scene extends Phaser.Scene {
       });
 
       this.input.keyboard.on('keydown-E', () => {
+        console.log('Tecla E presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack3Cooldown:', this.attack3Cooldown);
         if (!this.isAttacking && this.player.body.touching.down && !this.attack3Cooldown) {
           this.isAttacking = true;
           this.attack3Cooldown = true;
@@ -328,56 +349,15 @@ export class Mundo1Scene extends Phaser.Scene {
           });
         }
       });
-      const dummyX = this.player.x + 100;
-      const dummyY = 605 - 32 - 50;
-      this.dummy = this.add.rectangle(dummyX, dummyY, 60, 100, 0xff0000);
-      this.physics.add.existing(this.dummy);
-      this.dummyBody = this.dummy.body;
-      this.dummyBody.setAllowGravity(false);
-      this.dummyBody.setImmovable(true);
-      this.dummy.hp = 500;
-      this.dummy.wasHitThisAttack = false;
-      this.dummyHpText = this.add.text(dummyX, dummyY - 120, 'HP: 500', {
-        font: 'bold 16px Arial',
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 4
-      }).setOrigin(0.5);
-      this.dummy.takeDamage = () => {
-        if (this.dummy.wasHitThisAttack) return;
-        this.dummy.wasHitThisAttack = true;
-        const damage = this.ultimateActive ? 50 : 25;
-        this.dummy.hp -= damage;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
-        this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 20 : 10));
-        const knockbackDirection = this.player.flipX ? 1 : -1;
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + (10 * knockbackDirection),
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - (10 * knockbackDirection);
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, `-${damage}`, {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
-      };
+      this.input.keyboard.enabled = true;
+      this.game.canvas.tabIndex = 0;
+      this.game.canvas.focus();
+      this.input.keyboard.on('keydown-R', () => {
+        if (this.ultimateCharge >= 99 && !this.ultimateActive) {
+          this.activateUltimate();
+        }
+      });
+
       this.ultimateCharge = 0;
       this.ultimateActive = false;
       this.ultimateDuration = 15000;
@@ -403,14 +383,114 @@ export class Mundo1Scene extends Phaser.Scene {
         this.ultimateBar.x = newCenterX - barWidth / 2;
         this.ultimateText.x = newCenterX + barWidth / 2 + 10;
       });
-      this.input.keyboard.enabled = true;
-      this.game.canvas.tabIndex = 0;
-      this.game.canvas.focus();
-      this.input.keyboard.on('keydown-R', () => {
-        if (this.ultimateCharge >= 99 && !this.ultimateActive) {
-          this.activateUltimate();
+      // Crear sprite del enemigo NightBorne
+      this.enemy = this.physics.add.sprite(600, 650 - 32, 'nightborne'); // Posición inicial de ejemplo
+      this.enemy.setOrigin(0.5, 1);
+      this.enemy.setScale(2); // Escala aumentada
+      this.enemy.setCollideWorldBounds(true);
+      this.enemy.body.setGravityY(300); // Gravedad similar al jugador
+
+      this.physics.add.collider(this.enemy, this.groundCollider); // Colisión del enemigo con el suelo (re-añadida)
+
+      // Crear animación idle para NightBorne
+      if (!this.anims.exists('nightborne_idle')) {
+        this.anims.create({
+          key: 'nightborne_idle',
+          frames: this.anims.generateFrameNumbers('nightborne', { start: 0, end: 7 }),
+          frameRate: 10, // Velocidad de animación de ejemplo
+          repeat: -1 // Repetir indefinidamente
+        });
+      }
+      
+      // Crear animación walk para NightBorne (Restaurada y corregida)
+      if (!this.anims.exists('nightborne_walk')) {
+        this.anims.create({
+          key: 'nightborne_walk',
+          frames: this.anims.generateFrameNumbers('nightborne_run', { start: 0, end: 5 }), // Usar el spritesheet correcto y frames 0-5
+          frameRate: 10, // Velocidad de animación de ejemplo
+          repeat: -1
+        });
+      }
+      
+      // Crear animación attack para NightBorne
+      if (!this.anims.exists('nightborne_attack')) {
+        this.anims.create({
+          key: 'nightborne_attack',
+          frames: this.anims.generateFrameNumbers('nightborne', { start: 16, end: 27 }), // Rango de frames ajustado
+          frameRate: 15, // Velocidad de animación de ejemplo
+          repeat: 0 // No repetir, es un ataque
+        });
+      }
+
+      // Iniciar animación idle para el enemigo
+      this.enemy.anims.play('nightborne_idle', true);
+
+      // Añadir HP y texto de HP al enemigo
+      this.enemy.hp = 500; // HP inicial de ejemplo
+      this.enemy.isDead = false; // Estado de muerte
+      this.enemyHpText = this.add.text(this.enemy.x, this.enemy.y - 120, `HP: ${this.enemy.hp}`, {
+        font: 'bold 16px Arial',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+      }).setOrigin(0.5);
+
+      // Función para que el enemigo reciba daño
+      this.enemy.takeDamage = (amount) => {
+        if (this.enemy.isDead) return;
+        this.enemy.wasHitThisAttack = true;
+        const willDie = (this.enemy.hp - amount) <= 0;
+        this.enemy.hp -= amount;
+        if (this.enemy.hp <= 0) {
+          this.enemy.hp = 0;
+          this.enemy.isDead = true;
+          // Aquí se podría añadir una animación de muerte para el enemigo
+          // Por ahora, simplemente lo destruiremos después de un breve retardo
+          if (this.enemy.body) { // Deshabilitar cuerpo de física antes de la muerte
+            this.enemy.body.enable = false;
+          }
+          this.enemyHpText.setText(`HP: ${this.enemy.hp}`);
+          this.tweens.addCounter({
+            from: 1,
+            to: 0,
+            duration: 500, // Duración de la desaparición
+            onUpdate: tween => {
+              const v = tween.getValue();
+              this.enemy.setScale(v, v); // Escala reducida
+              this.enemy.alpha = v; // Fundido
+              this.enemyHpText.alpha = v; // Fundido del texto de HP
+            },
+            onComplete: () => {
+              this.enemy.destroy();
+              this.enemyHpText.destroy();
+            }
+          });
+        } else if (amount > 0) {
+          this.enemyHpText.setText(`HP: ${this.enemy.hp}`);
+          // Efecto visual de daño (opcional)
+           const knockbackDirection = (this.player.x < this.enemy.x) ? 1 : -1; // Empujar al enemigo en la dirección opuesta al jugador
+           this.tweens.add({
+             targets: this.enemy,
+             alpha: 0.5,
+             x: this.enemy.x + (20 * knockbackDirection),
+             yoyo: true,
+             repeat: 1,
+             duration: 100,
+             onComplete: () => {
+               this.enemy.alpha = 1;
+             }
+           });
         }
-      });
+      };
+
+      // Propiedades del enemigo para aggro y ataque
+      this.enemy.aggroRange = 300; // Distancia a la que el enemigo detecta al jugador
+      this.enemy.meleeRange = 80; // Distancia para el ataque cuerpo a cuerpo
+      this.enemy.moveSpeed = 100; // Velocidad de movimiento del enemigo
+      this.isEnemyAttacking = false; // Estado de ataque del enemigo
+      this.canEnemyAttack = true; // Bandera para controlar el cooldown del ataque del enemigo
+      this.enemyAttackCooldownTime = 1500; // Tiempo de cooldown del ataque del enemigo en ms
+
     } catch (error) {
       console.error('Error in game creation:', error);
       this.scene.start('Mundo1Scene');
@@ -425,15 +505,19 @@ export class Mundo1Scene extends Phaser.Scene {
     const offsetX = facing * 50;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy) this.dummy.takeDamage();
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 50 : 25;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
+        this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 20 : 10));
+      }
     }, null, this);
     this.player.once('animationcomplete-attack1', () => {
       if (this.attackHitbox) {
@@ -457,60 +541,18 @@ export class Mundo1Scene extends Phaser.Scene {
     const offsetX = facing * 50;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        this.dummy.hp -= 35;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
-        this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + 10,
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - 10;
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, '-35', {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-            if (this.dummy.hp <= 0) {
-              this.tweens.addCounter({
-                from: 1,
-                to: 0,
-                duration: 300,
-                onUpdate: tween => {
-                  const v = tween.getValue();
-                  this.dummy.setScale(v, v);
-                  this.dummy.alpha = v;
-                },
-                onComplete: () => {
-                  this.dummy.destroy();
-                }
-              });
-            }
-          }
-        });
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 70 : 35;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
+        this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 20 : 10));
       }
     }, null, this);
     this.player.once('animationcomplete-jump_attack', () => {
@@ -551,47 +593,18 @@ export class Mundo1Scene extends Phaser.Scene {
     const offsetX = facing * 60;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        const damage = this.ultimateActive ? 70 : 35;
-        this.dummy.hp -= damage;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 70 : 35;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
         this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 30 : 15));
-        const knockbackDirection = this.player.flipX ? 1 : -1;
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + (15 * knockbackDirection),
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - (15 * knockbackDirection);
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, `-${damage}`, {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
       }
     }, null, this);
     this.player.once('animationcomplete-attack2', () => {
@@ -616,47 +629,18 @@ export class Mundo1Scene extends Phaser.Scene {
     const offsetX = facing * 70;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        const damage = this.ultimateActive ? 90 : 45;
-        this.dummy.hp -= damage;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 90 : 45;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
         this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 40 : 20));
-        const knockbackDirection = this.player.flipX ? 1 : -1;
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + (20 * knockbackDirection),
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - (20 * knockbackDirection);
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, `-${damage}`, {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
       }
     }, null, this);
     this.player.once('animationcomplete-attack3', () => {
@@ -845,6 +829,68 @@ export class Mundo1Scene extends Phaser.Scene {
       }
       this.ultimateBar.width = 2 * this.ultimateCharge;
       this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
+
+      // Lógica del enemigo NightBorne
+      if (this.enemy && this.player && !this.enemy.isDead && !this.isEnemyAttacking) {
+        const distanceToPlayer = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
+
+        if (distanceToPlayer < this.enemy.aggroRange) {
+          // El jugador está dentro del aggro range
+          if (distanceToPlayer > this.enemy.meleeRange) {
+            // Moverse solo horizontalmente hacia el jugador
+            if (this.player.x < this.enemy.x) {
+              this.enemy.body.setVelocityX(-this.enemy.moveSpeed);
+            } else {
+              this.enemy.body.setVelocityX(this.enemy.moveSpeed);
+            }
+            // Voltear el sprite del enemigo según la posición del jugador
+            if (this.player.x < this.enemy.x) {
+              this.enemy.setFlipX(true); // Mirar a la izquierda
+            } else {
+              this.enemy.setFlipX(false); // Mirar a la derecha
+            }
+            // Reproducir animación de caminar del enemigo si no se está reproduciendo y no está atacando
+            if (this.enemy.anims.currentAnim.key !== 'nightborne_walk' && !this.isEnemyAttacking) {
+              // console.log('Intentando reproducir animación nightborne_walk'); // Log deshabilitado
+              this.enemy.anims.play('nightborne_walk', true);
+              // Ajustar el offset del cuerpo para la animación de caminar
+              this.enemy.body.setOffset(0, -15); // Ajusta el valor -10 según sea necesario para alinear los pies
+            }
+          } else {
+            // Detenerse y preparar ataque (dentro del melee range)
+            this.enemy.body.setVelocityX(0);
+            // Si el enemigo se detiene en el rango de ataque, asegurarse de que no esté reproduciendo la animación de caminar
+            if (this.enemy.anims.currentAnim && this.enemy.anims.currentAnim.key === 'nightborne_walk') { // Comprobar si currentAnim existe
+              // console.log('Deteniendo animación nightborne_walk al entrar en rango melee'); // Log deshabilitado
+              this.enemy.anims.stop();
+              // Restablecer el offset del cuerpo al detener la animación de caminar
+              this.enemy.body.setOffset(0, 0); // O el offset por defecto para idle/ataque
+              // No reproducimos idle aquí, la lógica de ataque o el estado fuera de rango lo harán
+            }
+          }
+        } else {
+          // El jugador está fuera del aggro range, detener al enemigo
+          this.enemy.body.setVelocityX(0);
+          // Reproducir animación idle del enemigo si no se está moviendo, no está atacando, y no está ya en idle
+          if (this.enemy.body.velocity.x === 0 && this.enemy.body.velocity.y === 0 && !this.isEnemyAttacking && (!this.enemy.anims.currentAnim || this.enemy.anims.currentAnim.key !== 'nightborne_idle')) {
+            // console.log('Intentando reproducir animación nightborne_idle'); // Log deshabilitado
+            this.enemy.anims.play('nightborne_idle', true);
+            // Restablecer el offset del cuerpo para la animación idle
+            this.enemy.body.setOffset(0, 0); // O el offset por defecto para idle/ataque
+          }
+        }
+      }
+
+      // Lógica para iniciar el ataque del enemigo
+      // Esta lógica debe estar fuera del primer if (!this.isEnemyAttacking) para permitir que el ataque interrumpa el movimiento/idle
+      if (this.enemy && this.player && !this.enemy.isDead && !this.player.isDead && !this.isEnemyAttacking) {
+         const distanceToPlayer = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
+         // Si el enemigo está dentro del rango de ataque y no está atacando, iniciar ataque
+         if (distanceToPlayer <= this.enemy.meleeRange && this.canEnemyAttack) { // Comprobar también el cooldown
+            this.startEnemyAttack(); // Llamar a la función para manejar el ataque
+         }
+      }
+
     } catch (error) {
       console.error('Error in game update:', error);
     }
@@ -880,6 +926,71 @@ export class Mundo1Scene extends Phaser.Scene {
       });
     }
     this.playerHpText.setText(`HP: ${this.player.hp}`);
+  }
+
+  startEnemyAttack() {
+    if (this.isEnemyAttacking || !this.enemy || !this.player || this.enemy.isDead || this.player.isDead || !this.canEnemyAttack) return; // Añadir comprobación de canEnemyAttack
+
+    this.isEnemyAttacking = true;
+    this.canEnemyAttack = false; // Establecer canAttack a false al iniciar el ataque
+    this.enemy.body.setVelocity(0, 0); // Detener movimiento
+
+    // Voltear el sprite del enemigo para mirar al jugador antes de atacar
+    if (this.player.x < this.enemy.x) {
+      this.enemy.setFlipX(true); // Mirar a la izquierda
+    } else {
+      this.enemy.setFlipX(false); // Mirar a la derecha
+    }
+
+    this.enemy.anims.play('nightborne_attack', true);
+
+    // Crear hitbox de ataque temporal
+    const attackHitboxWidth = 120; // Ancho de la hitbox de ataque del enemigo (ajustar según la animación)
+    const attackHitboxHeight = 100; // Altura de la hitbox de ataque del enemigo (ajustar según la animación)
+    const facingDirection = this.enemy.flipX ? -1 : 1;
+    // Ajustar el offset de la hitbox según la animación del ataque del enemigo
+    const hitboxOffsetX = facingDirection * 60; // Offset de ejemplo, ajustar
+    const hitboxX = this.enemy.x + hitboxOffsetX;
+    const hitboxY = this.enemy.y - this.enemy.displayHeight / 2 + 20; // Ajustar Y para que coincida con el ataque
+
+    const enemyAttackHitbox = this.add.rectangle(hitboxX, hitboxY, attackHitboxWidth, attackHitboxHeight);
+    this.physics.add.existing(enemyAttackHitbox);
+    enemyAttackHitbox.body.setAllowGravity(false);
+    enemyAttackHitbox.body.setImmovable(true);
+    enemyAttackHitbox.visible = true; // Ocultar hitbox (cambiar a true para depurar)
+
+    // Colisión con el jugador
+    this.physics.add.overlap(enemyAttackHitbox, this.player, () => {
+      const damageAmount = 30; // Daño del ataque del enemigo (ajustar según sea necesario)
+      if (this.player && !this.player.isDead) {
+        // Podríamos añadir una bandera al jugador para no recibir daño múltiple de una sola hitbox de enemigo si es necesario
+        console.log('Colisión detectada: Hitbox de NightBorne golpeó al jugador!'); // Log de colisión
+        console.log('Jugador golpeado por NightBorne!');
+        this.takePlayerDamage(damageAmount);
+      }
+    }, null, this);
+
+    // Destruir hitbox y resetear estado al completar la animación de ataque
+    this.enemy.once('animationcomplete-nightborne_attack', () => {
+      console.log('Animación de ataque de NightBorne completada.');
+      enemyAttackHitbox.destroy();
+      this.isEnemyAttacking = false;
+
+      // Después del ataque, activar el cooldown
+      this.time.delayedCall(this.enemyAttackCooldownTime, () => {
+        this.canEnemyAttack = true;
+        console.log('Cooldown de ataque de NightBorne terminado.');
+      }, [], this);
+
+      // Después del ataque, decidir si vuelve a idle o persigue al jugador
+      // La lógica en update manejará esto automáticamente al resetear isEnemyAttacking
+
+    });
+
+    // No añadimos un delayedCall aquí para el cooldown de inicio del ataque, 
+    // en su lugar, la lógica de inicio de ataque en update + la bandera isEnemyAttacking
+    // y el reseteo al final de la animación actúan como cooldowns.
+
   }
 }
 
@@ -1028,7 +1139,7 @@ export class Mundo2Scene extends Phaser.Scene {
       this.groundCollider.displayHeight = 32;
       this.groundCollider.refreshBody();
       this.groundCollider.setVisible(false);
-      this.physics.add.collider(this.player, this.groundCollider);
+      this.physics.add.collider(this.player, this.groundCollider); // Colisión del jugador con el suelo
       this.bgLayers = [
         { key: 'bg3', depth: -30, speed: 0.7 },
         { key: 'bg2', depth: -20, speed: 0.8 },
@@ -1138,6 +1249,7 @@ export class Mundo2Scene extends Phaser.Scene {
         }
       });
       this.input.keyboard.on('keydown-Q', () => {
+        console.log('Tecla Q presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack2Cooldown:', this.attack2Cooldown);
         if (!this.isAttacking && this.player.body.touching.down && !this.attack2Cooldown) {
           this.isAttacking = true;
           this.attack2Cooldown = true;
@@ -1150,6 +1262,7 @@ export class Mundo2Scene extends Phaser.Scene {
         }
       });
       this.input.keyboard.on('keydown-E', () => {
+        console.log('Tecla E presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack3Cooldown:', this.attack3Cooldown);
         if (!this.isAttacking && this.player.body.touching.down && !this.attack3Cooldown) {
           this.isAttacking = true;
           this.attack3Cooldown = true;
@@ -1191,15 +1304,19 @@ export class Mundo2Scene extends Phaser.Scene {
     const offsetX = facing * 50;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy) this.dummy.takeDamage();
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 50 : 25;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
+        this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 20 : 10));
+      }
     }, null, this);
     this.player.once('animationcomplete-attack1', () => {
       if (this.attackHitbox) {
@@ -1223,45 +1340,18 @@ export class Mundo2Scene extends Phaser.Scene {
     const offsetX = facing * 50;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        this.dummy.hp -= 35;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
-        this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + 10,
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - 10;
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, '-35', {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 70 : 35;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
+        this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 20 : 10));
       }
     }, null, this);
     this.player.once('animationcomplete-jump_attack', () => {
@@ -1286,47 +1376,18 @@ export class Mundo2Scene extends Phaser.Scene {
     const offsetX = facing * 60;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        const damage = this.ultimateActive ? 70 : 35;
-        this.dummy.hp -= damage;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 70 : 35;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
         this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 30 : 15));
-        const knockbackDirection = this.player.flipX ? 1 : -1;
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + (15 * knockbackDirection),
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - (15 * knockbackDirection);
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, `-${damage}`, {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
       }
     }, null, this);
     this.player.once('animationcomplete-attack2', () => {
@@ -1351,47 +1412,18 @@ export class Mundo2Scene extends Phaser.Scene {
     const offsetX = facing * 70;
     const hitboxX = this.player.x + offsetX;
     const hitboxY = this.player.y;
-    if (this.dummy) this.dummy.wasHitThisAttack = false;
+    if (this.enemy) this.enemy.wasHitThisAttack = false;
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
     this.attackHitboxBody.setAllowGravity(false);
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
-    this.physics.add.overlap(this.attackHitbox, this.dummy, () => {
-      if (this.dummy && !this.dummy.wasHitThisAttack) {
-        this.dummy.wasHitThisAttack = true;
-        const damage = this.ultimateActive ? 90 : 45;
-        this.dummy.hp -= damage;
-        this.dummyHpText.setText(`HP: ${this.dummy.hp}`);
+    this.physics.add.overlap(this.attackHitbox, this.enemy, () => {
+      const damage = this.ultimateActive ? 90 : 45;
+      if (this.enemy && !this.enemy.wasHitThisAttack) {
+        this.enemy.takeDamage(damage);
         this.ultimateCharge = Math.min(100, this.ultimateCharge + (this.ultimateActive ? 40 : 20));
-        const knockbackDirection = this.player.flipX ? 1 : -1;
-        this.tweens.add({
-          targets: this.dummy,
-          alpha: 0.2,
-          x: this.dummy.x + (20 * knockbackDirection),
-          yoyo: true,
-          repeat: 2,
-          duration: 60,
-          onComplete: () => {
-            this.dummy.alpha = 1;
-            this.dummy.x = this.dummy.x - (20 * knockbackDirection);
-            const dmgText = this.add.text(this.dummy.x, this.dummy.y - 70, `-${damage}`, {
-              font: 'bold 12px Arial',
-              fill: '#ff4444',
-              stroke: '#000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: dmgText,
-              y: dmgText.y - 40,
-              alpha: 0,
-              duration: 700,
-              ease: 'Cubic.easeOut',
-              onComplete: () => dmgText.destroy()
-            });
-          }
-        });
       }
     }, null, this);
     this.player.once('animationcomplete-attack3', () => {
@@ -1462,6 +1494,30 @@ export class Mundo2Scene extends Phaser.Scene {
         key: 'shout',
         frames: this.anims.generateFrameNumbers('shout', { start: 0, end: 16 }),
         frameRate: 18,
+        repeat: 0
+      });
+    }
+    if (!this.anims.exists('death')) {
+      this.anims.create({
+        key: 'death',
+        frames: this.anims.generateFrameNumbers('death', { start: 0, end: 7 }),
+        frameRate: 10,
+        repeat: 0
+      });
+    }
+    if (!this.anims.exists('hurt')) {
+      this.anims.create({
+        key: 'hurt',
+        frames: this.anims.generateFrameNumbers('hurt', { start: 0, end: 3 }),
+        frameRate: 14,
+        repeat: 0
+      });
+    }
+    if (!this.anims.exists('hurt_ult')) {
+      this.anims.create({
+        key: 'hurt_ult',
+        frames: this.anims.generateFrameNumbers('hurt_ult', { start: 0, end: 3 }),
+        frameRate: 14,
         repeat: 0
       });
     }
@@ -1555,6 +1611,68 @@ export class Mundo2Scene extends Phaser.Scene {
       }
       this.ultimateBar.width = 2 * this.ultimateCharge;
       this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
+
+      // Lógica del enemigo NightBorne
+      if (this.enemy && this.player && !this.enemy.isDead && !this.isEnemyAttacking) {
+        const distanceToPlayer = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
+
+        if (distanceToPlayer < this.enemy.aggroRange) {
+          // El jugador está dentro del aggro range
+          if (distanceToPlayer > this.enemy.meleeRange) {
+            // Moverse solo horizontalmente hacia el jugador
+            if (this.player.x < this.enemy.x) {
+              this.enemy.body.setVelocityX(-this.enemy.moveSpeed);
+            } else {
+              this.enemy.body.setVelocityX(this.enemy.moveSpeed);
+            }
+            // Voltear el sprite del enemigo según la posición del jugador
+            if (this.player.x < this.enemy.x) {
+              this.enemy.setFlipX(true); // Mirar a la izquierda
+            } else {
+              this.enemy.setFlipX(false); // Mirar a la derecha
+            }
+            // Reproducir animación de caminar del enemigo si no se está reproduciendo y no está atacando
+            if (this.enemy.anims.currentAnim.key !== 'nightborne_walk' && !this.isEnemyAttacking) {
+              // console.log('Intentando reproducir animación nightborne_walk'); // Log deshabilitado
+              this.enemy.anims.play('nightborne_walk', true);
+              // Ajustar el offset del cuerpo para la animación de caminar
+              this.enemy.body.setOffset(0, -10); // Ajusta el valor -10 según sea necesario para alinear los pies
+            }
+          } else {
+            // Detenerse y preparar ataque (dentro del melee range)
+            this.enemy.body.setVelocityX(0);
+            // Si el enemigo se detiene en el rango de ataque, asegurarse de que no esté reproduciendo la animación de caminar
+            if (this.enemy.anims.currentAnim && this.enemy.anims.currentAnim.key === 'nightborne_walk') { // Comprobar si currentAnim existe
+              // console.log('Deteniendo animación nightborne_walk al entrar en rango melee'); // Log deshabilitado
+              this.enemy.anims.stop();
+              // Restablecer el offset del cuerpo al detener la animación de caminar
+              this.enemy.body.setOffset(0, 0); // O el offset por defecto para idle/ataque
+              // No reproducimos idle aquí, la lógica de ataque o el estado fuera de rango lo harán
+            }
+          }
+        } else {
+          // El jugador está fuera del aggro range, detener al enemigo
+          this.enemy.body.setVelocityX(0);
+          // Reproducir animación idle del enemigo si no se está moviendo, no está atacando, y no está ya en idle
+          if (this.enemy.body.velocity.x === 0 && this.enemy.body.velocity.y === 0 && !this.isEnemyAttacking && (!this.enemy.anims.currentAnim || this.enemy.anims.currentAnim.key !== 'nightborne_idle')) {
+            // console.log('Intentando reproducir animación nightborne_idle'); // Log deshabilitado
+            this.enemy.anims.play('nightborne_idle', true);
+            // Restablecer el offset del cuerpo para la animación idle
+            this.enemy.body.setOffset(0, 0); // O el offset por defecto para idle/ataque
+          }
+        }
+      }
+
+      // Lógica para iniciar el ataque del enemigo
+      // Esta lógica debe estar fuera del primer if (!this.isEnemyAttacking) para permitir que el ataque interrumpa el movimiento/idle
+      if (this.enemy && this.player && !this.enemy.isDead && !this.player.isDead && !this.isEnemyAttacking) {
+         const distanceToPlayer = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
+         // Si el enemigo está dentro del rango de ataque y no está atacando, iniciar ataque
+         if (distanceToPlayer <= this.enemy.meleeRange && this.canEnemyAttack) { // Comprobar también el cooldown
+            this.startEnemyAttack(); // Llamar a la función para manejar el ataque
+         }
+      }
+
     } catch (error) {
       console.error('Error in game update:', error);
     }
