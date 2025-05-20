@@ -556,7 +556,7 @@ export class Mundo1Scene extends Phaser.Scene {
     const facing = this.player.flipX ? -1 : 1;
     const offsetX = facing * 5; // Reducido aún más para mayor precisión
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10; // Ajustado para mejor alineación vertical
     
     // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
@@ -860,6 +860,7 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     this.body.setGravityY(300);
     this.setScale(1);
+    this.setDepth(10); // Establecer la misma profundidad que el jugador
 
     // Ajustar la hitbox del goblin para que coincida mejor con su forma visual
     this.body.setSize(70, 90); // Reducir aún más el tamaño de la hitbox
