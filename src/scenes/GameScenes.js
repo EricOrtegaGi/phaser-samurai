@@ -127,6 +127,10 @@ export class Mundo1Scene extends Phaser.Scene {
       margin: 0,
       spacing: 0
     });
+    // Cargar assets para el cofre y pociones
+    // this.load.image('chest', '/assets/props/chest.png'); // Asumiendo que tienes una imagen de cofre
+    // this.load.image('health_potion', '/assets/props/health_potion.png'); // Asumiendo imagen de poción de vida
+    // this.load.image('ultimate_potion', '/assets/props/ultimate_potion.png'); // Asumiendo imagen de poción de ultimate
   }
 
   create() {
@@ -185,14 +189,52 @@ export class Mundo1Scene extends Phaser.Scene {
           this.scene.start('Mundo2Scene');
         });
       }, null, this);
+
+      // Añadir cofre antes del portal (usando un rectángulo como placeholder)
+      this.chest = this.physics.add.staticBody(2800, 605 - 32, 50, 50); // Posicionar antes del portal, ajustar tamaño si es necesario
+      this.chest.setOffset(-25, -25); // Ajustar offset para centrar la hitbox en el visual
+      this.chest.setDepth(5);
+      this.chest.setEnable(true);
+      this.chest.setVisible(false); // Ocultar el cuerpo de física si no quieres verlo
+
+      // Añadir visual para el cofre (rectángulo)
+      this.chestVisual = this.add.rectangle(2800, 605 - 32, 50, 50, 0x8B4513); // Color marrón para el cofre
+      this.chestVisual.setOrigin(0.5, 1);
+      this.chestVisual.setDepth(5);
+
+      this.chestOpened = false;
+
+      this.physics.add.overlap(this.player, this.chest, () => {
+        if (!this.chestOpened) {
+          this.chestOpened = true;
+          console.log('Cofre abierto');
+          
+          // Dar pociones al jugador (simulado con variables)
+          this.hasHealthPotion = true;
+          this.hasUltimatePotion = true;
+          console.log('Obtenidas poción de vida y poción de ultimate');
+          
+          // Desactivar interacción con el cofre después de abrirlo
+          this.chest.setEnable(false);
+          // Opcional: cambiar el color del visual del cofre o añadir una animación de apertura
+          this.chestVisual.setFillStyle(0x556B2F); // Cambiar a verde oscuro para indicar abierto
+        }
+      }, null, this);
+
       this.cursors = this.input.keyboard.addKeys({
         jump: Phaser.Input.Keyboard.KeyCodes.W,
         left: Phaser.Input.Keyboard.KeyCodes.A,
-        down: Phaser.Input.Keyboard.KeyCodes.S,
+        down: Phaser.Input.Keyboard.KeyCodes.S, // Mantener la definición por si se usa en otro lado
         right: Phaser.Input.Keyboard.KeyCodes.D,
         attack2: Phaser.Input.Keyboard.KeyCodes.Q,
-        attack3: Phaser.Input.Keyboard.KeyCodes.E
+        attack3: Phaser.Input.Keyboard.KeyCodes.E,
+        ultimatePotion: Phaser.Input.Keyboard.KeyCodes.Z // Nueva tecla para poción de ultimate
       });
+
+      // Añadir variables para rastrear pociones
+      this.hasHealthPotion = false;
+      this.hasUltimatePotion = false;
+
       if (!this.anims.exists('idle')) {
         this.anims.create({
           key: 'idle',
@@ -388,6 +430,31 @@ export class Mundo1Scene extends Phaser.Scene {
       this.input.keyboard.on('keydown-R', () => {
         if (this.ultimateCharge >= 99 && !this.ultimateActive) {
           this.activateUltimate();
+        }
+      });
+
+      // Listener para usar poción de vida con 'S'
+      this.input.keyboard.on('keydown-S', () => {
+        console.log('Tecla S presionada. hasHealthPotion:', this.hasHealthPotion);
+        if (this.hasHealthPotion && !this.player.isDead) {
+          // Usar poción de vida
+          const healAmount = 100;
+          this.healPlayer(healAmount);
+          this.hasHealthPotion = false; // Consumir poción
+          console.log('Poción de vida usada. hasHealthPotion:', this.hasHealthPotion);
+          // Aquí podrías añadir un efecto visual o sonido de uso de poción de vida
+        }
+      });
+
+      // Listener para usar poción de ultimate con 'Z'
+      this.input.keyboard.on('keydown-Z', () => {
+        console.log('Tecla Z presionada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateActive:', this.ultimateActive);
+        if (this.hasUltimatePotion && !this.player.isDead && !this.ultimateActive) {
+          // Usar poción de ultimate
+          this.ultimateCharge = 100; // Llenar barra de ultimate
+          this.hasUltimatePotion = false; // Consumir poción
+          console.log('Poción de ultimate usada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateCharge:', this.ultimateCharge);
+          // Aquí podrías añadir un efecto visual o sonido de uso de poción de ultimate
         }
       });
 
@@ -1618,11 +1685,66 @@ export class Mundo2Scene extends Phaser.Scene {
       this.cursors = this.input.keyboard.addKeys({
         jump: Phaser.Input.Keyboard.KeyCodes.W,
         left: Phaser.Input.Keyboard.KeyCodes.A,
-        down: Phaser.Input.Keyboard.KeyCodes.S,
+        down: Phaser.Input.Keyboard.KeyCodes.S, // Mantener la definición por si se usa en otro lado
         right: Phaser.Input.Keyboard.KeyCodes.D,
         attack2: Phaser.Input.Keyboard.KeyCodes.Q,
-        attack3: Phaser.Input.Keyboard.KeyCodes.E
+        attack3: Phaser.Input.Keyboard.KeyCodes.E,
+        ultimatePotion: Phaser.Input.Keyboard.KeyCodes.Z // Nueva tecla para poción de ultimate
       });
+
+      // Añadir variables para rastrear pociones
+      this.hasHealthPotion = false;
+      this.hasUltimatePotion = false;
+
+      if (!this.anims.exists('idle')) {
+        this.anims.create({
+          key: 'idle',
+          frames: this.anims.generateFrameNumbers('idle', { start: 0, end: 5 }),
+          frameRate: 12,
+          repeat: -1
+        });
+      }
+      if (!this.anims.exists('run')) {
+        this.anims.create({
+          key: 'run',
+          frames: this.anims.generateFrameNumbers('run', { start: 0, end: 7 }),
+          frameRate: 14,
+          repeat: -1
+        });
+      }
+      if (!this.anims.exists('attack1')) {
+        this.anims.create({
+          key: 'attack1',
+          frames: this.anims.generateFrameNumbers('attack1', { start: 0, end: 6 }),
+          frameRate: 18,
+          repeat: 0
+        });
+      }
+      if (!this.anims.exists('attack2')) {
+        this.anims.create({
+          key: 'attack2',
+          frames: this.anims.generateFrameNumbers('attack2', { start: 0, end: 4 }),
+          frameRate: 18,
+          repeat: 0
+        });
+      }
+      if (!this.anims.exists('attack3')) {
+        this.anims.create({
+          key: 'attack3',
+          frames: this.anims.generateFrameNumbers('attack3', { start: 0, end: 6 }),
+          frameRate: 18,
+          repeat: 0
+        });
+      }
+      if (!this.anims.exists('jump_attack')) {
+        this.anims.create({
+          key: 'jump_attack',
+          frames: this.anims.generateFrameNumbers('jump_attack', { start: 0, end: 6 }),
+          frameRate: 18,
+          repeat: 0
+        });
+      }
+      this.loadUltimateAnimations();
       this.player.anims.play('idle', true);
       this.player.setDepth(10);
       this.isAttacking = false;
@@ -1731,6 +1853,58 @@ export class Mundo2Scene extends Phaser.Scene {
           });
         }
       });
+
+      // Listener para usar poción de vida con 'S'
+      this.input.keyboard.on('keydown-S', () => {
+        console.log('Tecla S presionada. hasHealthPotion:', this.hasHealthPotion);
+        if (this.hasHealthPotion && !this.player.isDead) {
+          // Usar poción de vida
+          const healAmount = 100;
+          this.healPlayer(healAmount);
+          this.hasHealthPotion = false; // Consumir poción
+          console.log('Poción de vida usada. hasHealthPotion:', this.hasHealthPotion);
+          // Aquí podrías añadir un efecto visual o sonido de uso de poción de vida
+        }
+      });
+
+      // Listener para usar poción de ultimate con 'Z'
+      this.input.keyboard.on('keydown-Z', () => {
+        console.log('Tecla Z presionada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateActive:', this.ultimateActive);
+        if (this.hasUltimatePotion && !this.player.isDead && !this.ultimateActive) {
+          // Usar poción de ultimate
+          this.ultimateCharge = 100; // Llenar barra de ultimate
+          this.hasUltimatePotion = false; // Consumir poción
+          console.log('Poción de ultimate usada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateCharge:', this.ultimateCharge);
+          // Aquí podrías añadir un efecto visual o sonido de uso de poción de ultimate
+        }
+      });
+
+      this.ultimateCharge = 0;
+      this.ultimateActive = false;
+      this.ultimateDuration = 15000;
+      this.ultimateTimeLeft = 0;
+      const barWidth = 200;
+      const barHeight = 20;
+      const marginTop = 20;
+      const centerX = this.cameras.main.width - barWidth - 20; // Cambiar a la derecha
+      this.ultimateBarBg = this.add.rectangle(centerX, marginTop, barWidth, barHeight, 0x222222)
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      this.ultimateBar = this.add.rectangle(centerX, marginTop, 0, barHeight, 0xffd700)
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      this.ultimateText = this.add.text(centerX + barWidth + 10, marginTop, '', { font: 'bold 16px Arial', fill: '#fff' })
+        .setOrigin(0, 0)
+        .setScrollFactor(0);
+      this.scale.on('resize', (gameSize) => {
+        const newCenterX = gameSize.width - barWidth - 20; // Actualizar posición en resize
+        this.ultimateBarBg.x = newCenterX;
+        this.ultimateBar.x = newCenterX;
+        this.ultimateText.x = newCenterX + barWidth + 10;
+      });
+
+      // Crear goblins
+      this.createGoblins();
     } catch (error) {
       console.error('Error in game creation:', error);
       this.scene.start('Mundo2Scene');
@@ -2328,6 +2502,16 @@ export class Mundo2Scene extends Phaser.Scene {
       }
       this.ultimateBar.width = 2 * this.ultimateCharge;
       this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
+
+      // Actualizar goblins
+      this.goblins.forEach(goblin => {
+        if (goblin && !goblin.isDead) {
+          goblin.update(this.player);
+        }
+      });
+
+      // Limpiar goblins muertos
+      this.goblins = this.goblins.filter(goblin => goblin && !goblin.isDead);
     } catch (error) {
       console.error('Error in game update:', error);
     }
