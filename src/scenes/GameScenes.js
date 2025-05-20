@@ -4,6 +4,11 @@ import { DebugSystem } from '../utils/DebugSystem';
 export class Mundo1Scene extends Phaser.Scene {
   constructor() {
     super('Mundo1Scene');
+    // Constantes para las barras de vida
+    this.HEALTH_BAR_WIDTH = 200;
+    this.HEALTH_BAR_HEIGHT = 20;
+    this.HEALTH_BAR_MARGIN_TOP = 20;
+    this.HEALTH_BAR_MARGIN_LEFT = 40;
   }
 
   init() {
@@ -249,14 +254,29 @@ export class Mundo1Scene extends Phaser.Scene {
       this.attack3CooldownTime = 800;
       this.jumpAttackCooldown = false;
       this.jumpAttackCooldownTime = 1200;
-      this.player.hp = 500;
+      this.player.hp = 300;
+      this.player.maxHp = 300;
       this.player.isDead = false;
-      this.playerHpText = this.add.text(40, 40, 'HP: 500', {
-        font: 'bold 16px Arial',
-        fill: '#00ff00',
-        stroke: '#000000',
-        strokeThickness: 4
-      }).setOrigin(0, 0).setScrollFactor(0);
+      
+      // Crear barra de vida del jugador
+      // Fondo de la barra (gris)
+      this.playerHealthBarBg = this.add.rectangle(
+        this.HEALTH_BAR_MARGIN_LEFT,
+        this.HEALTH_BAR_MARGIN_TOP,
+        this.HEALTH_BAR_WIDTH,
+        this.HEALTH_BAR_HEIGHT,
+        0x666666
+      ).setOrigin(0, 0).setScrollFactor(0);
+      
+      // Barra de vida (verde)
+      this.playerHealthBar = this.add.rectangle(
+        this.HEALTH_BAR_MARGIN_LEFT,
+        this.HEALTH_BAR_MARGIN_TOP,
+        this.HEALTH_BAR_WIDTH,
+        this.HEALTH_BAR_HEIGHT,
+        0x00ff00
+      ).setOrigin(0, 0).setScrollFactor(0);
+      
       this.input.on('pointerdown', (pointer) => {
         if (pointer.leftButtonDown() && !this.isAttacking) {
           if (this.player.body.touching.down && !this.attackCooldown) {
@@ -378,21 +398,21 @@ export class Mundo1Scene extends Phaser.Scene {
       const barWidth = 200;
       const barHeight = 20;
       const marginTop = 20;
-      const centerX = this.cameras.main.width / 2;
-      this.ultimateBarBg = this.add.rectangle(centerX - barWidth / 2, marginTop, barWidth, barHeight, 0x222222)
+      const centerX = this.cameras.main.width - barWidth - 20; // Cambiar a la derecha
+      this.ultimateBarBg = this.add.rectangle(centerX, marginTop, barWidth, barHeight, 0x222222)
         .setOrigin(0, 0)
         .setScrollFactor(0);
-      this.ultimateBar = this.add.rectangle(centerX - barWidth / 2, marginTop, 0, barHeight, 0xffd700)
+      this.ultimateBar = this.add.rectangle(centerX, marginTop, 0, barHeight, 0xffd700)
         .setOrigin(0, 0)
         .setScrollFactor(0);
-      this.ultimateText = this.add.text(centerX + barWidth / 2 + 10, marginTop, '', { font: 'bold 16px Arial', fill: '#fff' })
+      this.ultimateText = this.add.text(centerX + barWidth + 10, marginTop, '', { font: 'bold 16px Arial', fill: '#fff' })
         .setOrigin(0, 0)
         .setScrollFactor(0);
       this.scale.on('resize', (gameSize) => {
-        const newCenterX = gameSize.width / 2;
-        this.ultimateBarBg.x = newCenterX - barWidth / 2;
-        this.ultimateBar.x = newCenterX - barWidth / 2;
-        this.ultimateText.x = newCenterX + barWidth / 2 + 10;
+        const newCenterX = gameSize.width - barWidth - 20; // Actualizar posición en resize
+        this.ultimateBarBg.x = newCenterX;
+        this.ultimateBar.x = newCenterX;
+        this.ultimateText.x = newCenterX + barWidth + 10;
       });
 
       // Crear goblins
@@ -407,11 +427,10 @@ export class Mundo1Scene extends Phaser.Scene {
     const meleeWidth = 60;
     const meleeHeight = 80;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -419,23 +438,58 @@ export class Mundo1Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 64 : 40;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            } else {
+              // Mostrar daño normal como texto flotante
+              const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+                font: 'bold 20px Arial', // Fuente un poco más grande
+                fill: '#ff0000',
+                stroke: '#000000',
+                strokeThickness: 3
+              }).setOrigin(0.5);
+
+              // Animación del texto
+              this.tweens.add({
+                targets: damageText,
+                y: goblin.y - 60,
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => {
+                  damageText.destroy();
+                }
+              });
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 5);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack1', () => {
@@ -456,11 +510,10 @@ export class Mundo1Scene extends Phaser.Scene {
     const meleeWidth = 90;
     const meleeHeight = 110;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -468,23 +521,58 @@ export class Mundo1Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 50 : 30;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            } else {
+              // Mostrar daño normal como texto flotante
+              const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+                font: 'bold 20px Arial', // Fuente un poco más grande
+                fill: '#ff0000',
+                stroke: '#000000',
+                strokeThickness: 3
+              }).setOrigin(0.5);
+
+              // Animación del texto
+              this.tweens.add({
+                targets: damageText,
+                y: goblin.y - 60,
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => {
+                  damageText.destroy();
+                }
+              });
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 15);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 7);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-jump_attack', () => {
@@ -505,11 +593,10 @@ export class Mundo1Scene extends Phaser.Scene {
     const meleeWidth = 70;
     const meleeHeight = 90;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -517,23 +604,58 @@ export class Mundo1Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 62 : 50;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            } else {
+              // Mostrar daño normal como texto flotante
+              const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+                font: 'bold 20px Arial', // Fuente un poco más grande
+                fill: '#ff0000',
+                stroke: '#000000',
+                strokeThickness: 3
+              }).setOrigin(0.5);
+
+              // Animación del texto
+              this.tweens.add({
+                targets: damageText,
+                y: goblin.y - 60,
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => {
+                  damageText.destroy();
+                }
+              });
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 20);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack2', () => {
@@ -554,11 +676,10 @@ export class Mundo1Scene extends Phaser.Scene {
     const meleeWidth = 80;
     const meleeHeight = 100;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 10; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -566,23 +687,58 @@ export class Mundo1Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 42 : 35;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            } else {
+              // Mostrar daño normal como texto flotante
+              const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+                font: 'bold 20px Arial', // Fuente un poco más grande
+                fill: '#ff0000',
+                stroke: '#000000',
+                strokeThickness: 3
+              }).setOrigin(0.5);
+
+              // Animación del texto
+              this.tweens.add({
+                targets: damageText,
+                y: goblin.y - 60,
+                alpha: 0,
+                duration: 1000,
+                ease: 'Power2',
+                onComplete: () => {
+                  damageText.destroy();
+                }
+              });
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 25);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 12);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack3', () => {
@@ -596,6 +752,130 @@ export class Mundo1Scene extends Phaser.Scene {
         this.attackHitbox.destroy();
         this.attackHitbox = null;
       }
+    });
+  }
+
+  healPlayer(amount) {
+    if (this.player.isDead) return;
+    
+    const oldHp = this.player.hp;
+    const targetHp = Math.min(this.player.maxHp, this.player.hp + amount);
+    const actualHeal = targetHp - oldHp;
+    
+    if (actualHeal > 0) {
+      // Curar gradualmente
+      const healPerTick = Math.ceil(actualHeal / 10); // Dividir la curación en 10 ticks
+      let currentHeal = 0;
+      
+      const healInterval = this.time.addEvent({
+        delay: 100,
+        callback: () => {
+          if (currentHeal < actualHeal) {
+            const healThisTick = Math.min(healPerTick, actualHeal - currentHeal);
+            this.player.hp += healThisTick;
+            currentHeal += healThisTick;
+            
+            // Crear texto flotante para cada tick de curación
+            const healTextTick = this.add.text(this.player.x, this.player.y - 30, `+${healThisTick}`, {
+              font: 'bold 16px Arial',
+              fill: '#00ff00',
+              stroke: '#000000',
+              strokeThickness: 3
+            }).setOrigin(0.5);
+
+            // Animación del texto
+            this.tweens.add({
+              targets: healTextTick,
+              y: this.player.y - 60,
+              alpha: 0,
+              duration: 1000,
+              ease: 'Power2',
+              onComplete: () => {
+                healTextTick.destroy();
+              }
+            });
+            
+            // Actualizar barra de vida
+            const healthPercent = this.player.hp / this.player.maxHp;
+            this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+            
+            // Cambiar color según la vida
+            if (healthPercent > 0.6) {
+              this.playerHealthBar.fillColor = 0x00ff00; // Verde
+            } else if (healthPercent > 0.3) {
+              this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+            } else {
+              this.playerHealthBar.fillColor = 0xff0000; // Rojo;
+            }
+          } else {
+            healInterval.remove();
+          }
+        },
+        callbackScope: this,
+        repeat: 9
+      });
+    }
+  }
+
+  applyDamageOverTime(goblin, damage) {
+    // Aplicar el daño inicial
+    goblin.takeDamage(damage, true);
+    
+    // Crear texto flotante de daño
+    const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+      font: 'bold 16px Arial',
+      fill: '#ff0000',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: damageText,
+      y: goblin.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy();
+      }
+    });
+    
+    // Programar el daño adicional cada segundo durante 3 segundos
+    let ticks = 0;
+    const damageInterval = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        if (goblin && !goblin.isDead && ticks < 3) {
+          goblin.takeDamage(damage, true);
+          
+          // Crear texto flotante para cada tick de daño
+          const dotText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+            font: 'bold 16px Arial',
+            fill: '#ff0000',
+            stroke: '#000000',
+            strokeThickness: 3
+          }).setOrigin(0.5);
+
+          // Animación del texto
+          this.tweens.add({
+            targets: dotText,
+            y: goblin.y - 60,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+              dotText.destroy();
+            }
+          });
+          
+          ticks++;
+        } else {
+          damageInterval.remove();
+        }
+      },
+      callbackScope: this,
+      repeat: 2
     });
   }
 
@@ -740,11 +1020,23 @@ export class Mundo1Scene extends Phaser.Scene {
   }
 
   createGoblins() {
-    // Crear 3 goblins en diferentes posiciones
+    // Crear goblins en diferentes posiciones a lo largo del mundo
     const goblinPositions = [
-      { x: 500, y: 555 },
-      { x: 1000, y: 555 },
-      { x: 1500, y: 555 }
+      { x: 500, y: 555 },    // Primer grupo
+      { x: 530, y: 555 },
+      { x: 560, y: 555 },
+      { x: 1000, y: 555 },   // Segundo grupo
+      { x: 1030, y: 555 },
+      { x: 1060, y: 555 },
+      { x: 1500, y: 555 },   // Tercer grupo
+      { x: 1530, y: 555 },
+      { x: 1560, y: 555 },
+      { x: 2000, y: 555 },   // Cuarto grupo
+      { x: 2030, y: 555 },
+      { x: 2060, y: 555 },
+      { x: 2500, y: 555 },   // Quinto grupo
+      { x: 2530, y: 555 },
+      { x: 2560, y: 555 }
     ];
 
     goblinPositions.forEach(pos => {
@@ -845,7 +1137,19 @@ export class Mundo1Scene extends Phaser.Scene {
         }
       });
     }
-    this.playerHpText.setText(`HP: ${this.player.hp}`);
+    
+    // Actualizar barra de vida
+    const healthPercent = this.player.hp / this.player.maxHp;
+    this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+    
+    // Cambiar color según la vida
+    if (healthPercent > 0.6) {
+      this.playerHealthBar.fillColor = 0x00ff00; // Verde
+    } else if (healthPercent > 0.3) {
+      this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+    } else {
+      this.playerHealthBar.fillColor = 0xff0000; // Rojo
+    }
   }
 }
 
@@ -860,15 +1164,15 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     this.body.setGravityY(300);
     this.setScale(1);
-    this.setDepth(10); // Establecer la misma profundidad que el jugador
+    this.setDepth(10);
 
-    // Ajustar la hitbox del goblin para que coincida mejor con su forma visual
-    this.body.setSize(70, 90); // Reducir aún más el tamaño de la hitbox
-    this.body.setOffset(40, 45); // Ajustar el offset para centrar mejor la hitbox
+    // Ajustar la hitbox del goblin
+    this.body.setSize(70, 90);
+    this.body.setOffset(40, 45);
 
     // Propiedades del goblin
-    this.health = 200;
-    this.maxHealth = 200;
+    this.health = 250;
+    this.maxHealth = 250;
     this.speed = 100;
     this.attackDamage = 20;
     this.isAttacking = false;
@@ -883,6 +1187,9 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.optimalDistance = 60;
     this.takeHitCooldown = false;
     this.takeHitCooldownTime = 500;
+
+    // Crear la barra de vida
+    this.createHealthBar();
 
     // Crear animaciones si no existen
     this.createAnimations();
@@ -938,8 +1245,60 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  createHealthBar() {
+    const barWidth = 50;
+    const barHeight = 5;
+    const offsetY = -40;
+
+    // Fondo de la barra (gris)
+    this.healthBarBg = this.scene.add.rectangle(
+      this.x,
+      this.y + offsetY,
+      barWidth,
+      barHeight,
+      0x666666
+    ).setOrigin(0.5, 0.5);
+
+    // Barra de vida (verde)
+    this.healthBar = this.scene.add.rectangle(
+      this.x,
+      this.y + offsetY,
+      barWidth,
+      barHeight,
+      0x00ff00
+    ).setOrigin(0.5, 0.5);
+
+    // Asegurar que la barra de vida esté por encima del goblin
+    this.healthBarBg.setDepth(11);
+    this.healthBar.setDepth(11);
+  }
+
+  updateHealthBar() {
+    const healthPercent = this.health / this.maxHealth;
+    const barWidth = 50;
+    
+    // Actualizar el ancho de la barra de vida
+    this.healthBar.width = barWidth * healthPercent;
+    
+    // Cambiar el color según la vida restante
+    if (healthPercent > 0.6) {
+      this.healthBar.fillColor = 0x00ff00; // Verde
+    } else if (healthPercent > 0.3) {
+      this.healthBar.fillColor = 0xffff00; // Amarillo
+    } else {
+      this.healthBar.fillColor = 0xff0000; // Rojo
+    }
+  }
+
   update(player) {
     if (this.isDead || this.isTakingHit) return;
+
+    // Actualizar posición de la barra de vida
+    const offsetY = -40;
+    this.healthBarBg.x = this.x;
+    this.healthBarBg.y = this.y + offsetY;
+    this.healthBar.x = this.x - (50 - this.healthBar.width) / 2;
+    this.healthBar.y = this.y + offsetY;
 
     const distance = Phaser.Math.Distance.Between(
       this.x, this.y,
@@ -1025,28 +1384,52 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  takeDamage(amount) {
-    if (this.isDead || this.isTakingHit) return;
+  takeDamage(amount, isDot = false) {
+    if (this.isDead || (this.isTakingHit && !isDot)) return;
 
     this.health -= amount;
-    this.isTakingHit = true;
-    this.takeHitCooldown = true;
-    this.setVelocityX(0);
+    this.updateHealthBar();
     
-    // Reproducir la animación de take hit
-    this.play('goblin_take_hit', true);
+    // Crear texto flotante de daño
+    const damageText = this.scene.add.text(this.x, this.y - 30, `-${amount}`, {
+      font: 'bold 20px Arial', // Fuente un poco más grande
+      fill: '#ff0000',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
 
-    // Añadir un pequeño retroceso
-    const knockbackDirection = this.scene.player.x < this.x ? 1 : -1;
-    this.setVelocityX(knockbackDirection * 100);
-
-    // Restaurar el estado después de la animación
-    this.once('animationcomplete-goblin_take_hit', () => {
-      this.isTakingHit = false;
-      this.scene.time.delayedCall(this.takeHitCooldownTime, () => {
-        this.takeHitCooldown = false;
-      });
+    // Animación del texto
+    this.scene.tweens.add({
+      targets: damageText,
+      y: this.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy();
+      }
     });
+
+    if (!isDot) {
+      this.isTakingHit = true;
+      this.takeHitCooldown = true;
+      this.setVelocityX(0);
+      
+      // Reproducir la animación de take hit
+      this.play('goblin_take_hit', true);
+
+      // Añadir un pequeño retroceso
+      const knockbackDirection = this.scene.player.x < this.x ? 1 : -1;
+      this.setVelocityX(knockbackDirection * 100);
+
+      // Restaurar el estado después de la animación
+      this.once('animationcomplete-goblin_take_hit', () => {
+        this.isTakingHit = false;
+        this.scene.time.delayedCall(this.takeHitCooldownTime, () => {
+          this.takeHitCooldown = false;
+        });
+      });
+    }
 
     if (this.health <= 0) {
       this.die();
@@ -1057,6 +1440,10 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.isDead = true;
     this.setVelocityX(0);
     this.play('goblin_death', true);
+    
+    // Destruir las barras de vida
+    this.healthBarBg.destroy();
+    this.healthBar.destroy();
     
     this.once('animationcomplete', () => {
       this.destroy();
@@ -1370,11 +1757,10 @@ export class Mundo2Scene extends Phaser.Scene {
     const meleeWidth = 60;
     const meleeHeight = 80;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -1382,23 +1768,38 @@ export class Mundo2Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 64 : 40;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 5);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack1', () => {
@@ -1419,11 +1820,10 @@ export class Mundo2Scene extends Phaser.Scene {
     const meleeWidth = 90;
     const meleeHeight = 110;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -1431,23 +1831,38 @@ export class Mundo2Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 64 : 40;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 15);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 7);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-jump_attack', () => {
@@ -1468,11 +1883,10 @@ export class Mundo2Scene extends Phaser.Scene {
     const meleeWidth = 70;
     const meleeHeight = 90;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -1480,23 +1894,38 @@ export class Mundo2Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 64 : 40;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 20);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack2', () => {
@@ -1517,11 +1946,10 @@ export class Mundo2Scene extends Phaser.Scene {
     const meleeWidth = 80;
     const meleeHeight = 100;
     const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5; // Reducido aún más para mayor precisión
+    const offsetX = facing * 5;
     const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 20; // Ajustado para mejor alineación vertical
+    const hitboxY = this.player.y - 10;
     
-    // Crear hitbox del ataque
     this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
     this.physics.add.existing(this.attackHitbox);
     this.attackHitboxBody = this.attackHitbox.body;
@@ -1529,23 +1957,38 @@ export class Mundo2Scene extends Phaser.Scene {
     this.attackHitboxBody.setImmovable(true);
     this.attackHitbox.visible = false;
 
-    // Comprobar colisión con goblins
     let hitEnemy = false;
+    let totalDamage = 0;
     this.goblins.forEach(goblin => {
       if (goblin && !goblin.isDead) {
         const goblinBounds = goblin.getBounds();
         const hitboxBounds = this.attackHitbox.getBounds();
         
         if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          goblin.takeDamage(50);
-          hitEnemy = true;
+          // Verificar si el jugador está mirando hacia el goblin
+          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
+                                (facing === 1 && goblin.x > this.player.x);
+          
+          if (isFacingGoblin) {
+            const damage = this.ultimateActive ? 64 : 40;
+            goblin.takeDamage(damage);
+            totalDamage += damage;
+            if (this.ultimateActive) {
+              this.applyDamageOverTime(goblin, 15);
+              totalDamage += 45; // 15 * 3 ticks de DoT
+            }
+            hitEnemy = true;
+          }
         }
       }
     });
 
-    // Cargar ultimate si golpeó a un enemigo
     if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 25);
+      this.ultimateCharge = Math.min(100, this.ultimateCharge + 12);
+    } else if (hitEnemy && this.ultimateActive) {
+      // Curar 10% del daño total infligido
+      const healAmount = Math.floor(totalDamage * 0.1);
+      this.healPlayer(healAmount);
     }
 
     this.player.once('animationcomplete-attack3', () => {
@@ -1559,6 +2002,130 @@ export class Mundo2Scene extends Phaser.Scene {
         this.attackHitbox.destroy();
         this.attackHitbox = null;
       }
+    });
+  }
+
+  healPlayer(amount) {
+    if (this.player.isDead) return;
+    
+    const oldHp = this.player.hp;
+    const targetHp = Math.min(this.player.maxHp, this.player.hp + amount);
+    const actualHeal = targetHp - oldHp;
+    
+    if (actualHeal > 0) {
+      // Curar gradualmente
+      const healPerTick = Math.ceil(actualHeal / 10); // Dividir la curación en 10 ticks
+      let currentHeal = 0;
+      
+      const healInterval = this.time.addEvent({
+        delay: 100,
+        callback: () => {
+          if (currentHeal < actualHeal) {
+            const healThisTick = Math.min(healPerTick, actualHeal - currentHeal);
+            this.player.hp += healThisTick;
+            currentHeal += healThisTick;
+            
+            // Crear texto flotante para cada tick de curación
+            const healTextTick = this.add.text(this.player.x, this.player.y - 30, `+${healThisTick}`, {
+              font: 'bold 16px Arial',
+              fill: '#00ff00',
+              stroke: '#000000',
+              strokeThickness: 3
+            }).setOrigin(0.5);
+
+            // Animación del texto
+            this.tweens.add({
+              targets: healTextTick,
+              y: this.player.y - 60,
+              alpha: 0,
+              duration: 1000,
+              ease: 'Power2',
+              onComplete: () => {
+                healTextTick.destroy();
+              }
+            });
+            
+            // Actualizar barra de vida
+            const healthPercent = this.player.hp / this.player.maxHp;
+            this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+            
+            // Cambiar color según la vida
+            if (healthPercent > 0.6) {
+              this.playerHealthBar.fillColor = 0x00ff00; // Verde
+            } else if (healthPercent > 0.3) {
+              this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+            } else {
+              this.playerHealthBar.fillColor = 0xff0000; // Rojo;
+            }
+          } else {
+            healInterval.remove();
+          }
+        },
+        callbackScope: this,
+        repeat: 9
+      });
+    }
+  }
+
+  applyDamageOverTime(goblin, damage) {
+    // Aplicar el daño inicial
+    goblin.takeDamage(damage, true);
+    
+    // Crear texto flotante de daño
+    const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+      font: 'bold 16px Arial',
+      fill: '#ff0000',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: damageText,
+      y: goblin.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy();
+      }
+    });
+    
+    // Programar el daño adicional cada segundo durante 3 segundos
+    let ticks = 0;
+    const damageInterval = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        if (goblin && !goblin.isDead && ticks < 3) {
+          goblin.takeDamage(damage, true);
+          
+          // Crear texto flotante para cada tick de daño
+          const dotText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
+            font: 'bold 16px Arial',
+            fill: '#ff0000',
+            stroke: '#000000',
+            strokeThickness: 3
+          }).setOrigin(0.5);
+
+          // Animación del texto
+          this.tweens.add({
+            targets: dotText,
+            y: goblin.y - 60,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+              dotText.destroy();
+            }
+          });
+          
+          ticks++;
+        } else {
+          damageInterval.remove();
+        }
+      },
+      callbackScope: this,
+      repeat: 2
     });
   }
 
@@ -1677,12 +2244,40 @@ export class Mundo2Scene extends Phaser.Scene {
       });
     }, this);
   }
+  
 
   deactivateUltimate() {
     this.ultimateActive = false;
     this.ultimateCharge = 0;
     this.player.anims.play('idle', true);
     if (this.ultimateTimerEvent) this.ultimateTimerEvent.remove();
+  }
+
+  createGoblins() {
+    // Crear goblins en diferentes posiciones a lo largo del mundo
+    const goblinPositions = [
+      { x: 500, y: 555 },    // Primer grupo
+      { x: 530, y: 555 },
+      { x: 560, y: 555 },
+      { x: 1000, y: 555 },   // Segundo grupo
+      { x: 1030, y: 555 },
+      { x: 1060, y: 555 },
+      { x: 1500, y: 555 },   // Tercer grupo
+      { x: 1530, y: 555 },
+      { x: 1560, y: 555 },
+      { x: 2000, y: 555 },   // Cuarto grupo
+      { x: 2030, y: 555 },
+      { x: 2060, y: 555 },
+      { x: 2500, y: 555 },   // Quinto grupo
+      { x: 2530, y: 555 },
+      { x: 2560, y: 555 }
+    ];
+
+    goblinPositions.forEach(pos => {
+      const goblin = new Goblin(this, pos.x, pos.y);
+      this.goblins.push(goblin);
+      this.physics.add.collider(goblin, this.groundCollider);
+    });
   }
 
   update() {
@@ -1735,6 +2330,49 @@ export class Mundo2Scene extends Phaser.Scene {
       this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
     } catch (error) {
       console.error('Error in game update:', error);
+    }
+  }
+
+  takePlayerDamage(amount) {
+    if (this.player.isDead) return;
+    const willDie = (this.player.hp - amount) <= 0;
+    this.player.hp -= amount;
+    if (this.player.hp <= 0) {
+      this.player.hp = 0;
+      this.player.isDead = true;
+      this.isAttacking = true;
+      this.player.anims.play('death', true);
+      this.player.setVelocity(0, 0);
+      this.input.keyboard.enabled = false;
+      this.time.delayedCall(2000, () => {
+        this.scene.restart();
+      });
+    } else if (amount > 0) {
+      const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
+      this.isAttacking = true;
+      this.player.anims.play(animKey, true);
+      this.player.setVelocity(0, 0);
+      this.input.keyboard.enabled = false;
+      this.player.once('animationcomplete-' + animKey, () => {
+        if (!this.player.isDead) {
+          this.isAttacking = false;
+          this.input.keyboard.enabled = true;
+          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
+        }
+      });
+    }
+    
+    // Actualizar barra de vida
+    const healthPercent = this.player.hp / this.player.maxHp;
+    this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+    
+    // Cambiar color según la vida
+    if (healthPercent > 0.6) {
+      this.playerHealthBar.fillColor = 0x00ff00; // Verde
+    } else if (healthPercent > 0.3) {
+      this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+    } else {
+      this.playerHealthBar.fillColor = 0xff0000; // Rojo
     }
   }
 }
