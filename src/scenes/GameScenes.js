@@ -9,6 +9,7 @@ export class Mundo1Scene extends Phaser.Scene {
     this.HEALTH_BAR_HEIGHT = 20;
     this.HEALTH_BAR_MARGIN_TOP = 20;
     this.HEALTH_BAR_MARGIN_LEFT = 40;
+    this.hasPotion = false;
   }
 
   init() {
@@ -127,10 +128,7 @@ export class Mundo1Scene extends Phaser.Scene {
       margin: 0,
       spacing: 0
     });
-    // Cargar assets para el cofre y pociones
-    // this.load.image('chest', '/assets/props/chest.png'); // Asumiendo que tienes una imagen de cofre
-    // this.load.image('health_potion', '/assets/props/health_potion.png'); // Asumiendo imagen de poción de vida
-    // this.load.image('ultimate_potion', '/assets/props/ultimate_potion.png'); // Asumiendo imagen de poción de ultimate
+    this.load.image('potion', '/assets/items/potion.png');
   }
 
   create() {
@@ -189,52 +187,15 @@ export class Mundo1Scene extends Phaser.Scene {
           this.scene.start('Mundo2Scene');
         });
       }, null, this);
-
-      // Añadir cofre antes del portal (usando un rectángulo como placeholder)
-      this.chest = this.physics.add.staticBody(2800, 605 - 32, 50, 50); // Posicionar antes del portal, ajustar tamaño si es necesario
-      this.chest.setOffset(-25, -25); // Ajustar offset para centrar la hitbox en el visual
-      this.chest.setDepth(5);
-      this.chest.setEnable(true);
-      this.chest.setVisible(false); // Ocultar el cuerpo de física si no quieres verlo
-
-      // Añadir visual para el cofre (rectángulo)
-      this.chestVisual = this.add.rectangle(2800, 605 - 32, 50, 50, 0x8B4513); // Color marrón para el cofre
-      this.chestVisual.setOrigin(0.5, 1);
-      this.chestVisual.setDepth(5);
-
-      this.chestOpened = false;
-
-      this.physics.add.overlap(this.player, this.chest, () => {
-        if (!this.chestOpened) {
-          this.chestOpened = true;
-          console.log('Cofre abierto');
-          
-          // Dar pociones al jugador (simulado con variables)
-          this.hasHealthPotion = true;
-          this.hasUltimatePotion = true;
-          console.log('Obtenidas poción de vida y poción de ultimate');
-          
-          // Desactivar interacción con el cofre después de abrirlo
-          this.chest.setEnable(false);
-          // Opcional: cambiar el color del visual del cofre o añadir una animación de apertura
-          this.chestVisual.setFillStyle(0x556B2F); // Cambiar a verde oscuro para indicar abierto
-        }
-      }, null, this);
-
       this.cursors = this.input.keyboard.addKeys({
         jump: Phaser.Input.Keyboard.KeyCodes.W,
         left: Phaser.Input.Keyboard.KeyCodes.A,
-        down: Phaser.Input.Keyboard.KeyCodes.S, // Mantener la definición por si se usa en otro lado
+        down: Phaser.Input.Keyboard.KeyCodes.S,
         right: Phaser.Input.Keyboard.KeyCodes.D,
         attack2: Phaser.Input.Keyboard.KeyCodes.Q,
         attack3: Phaser.Input.Keyboard.KeyCodes.E,
-        ultimatePotion: Phaser.Input.Keyboard.KeyCodes.Z // Nueva tecla para poción de ultimate
+        usePotion: Phaser.Input.Keyboard.KeyCodes.F
       });
-
-      // Añadir variables para rastrear pociones
-      this.hasHealthPotion = false;
-      this.hasUltimatePotion = false;
-
       if (!this.anims.exists('idle')) {
         this.anims.create({
           key: 'idle',
@@ -433,31 +394,6 @@ export class Mundo1Scene extends Phaser.Scene {
         }
       });
 
-      // Listener para usar poción de vida con 'S'
-      this.input.keyboard.on('keydown-S', () => {
-        console.log('Tecla S presionada. hasHealthPotion:', this.hasHealthPotion);
-        if (this.hasHealthPotion && !this.player.isDead) {
-          // Usar poción de vida
-          const healAmount = 100;
-          this.healPlayer(healAmount);
-          this.hasHealthPotion = false; // Consumir poción
-          console.log('Poción de vida usada. hasHealthPotion:', this.hasHealthPotion);
-          // Aquí podrías añadir un efecto visual o sonido de uso de poción de vida
-        }
-      });
-
-      // Listener para usar poción de ultimate con 'Z'
-      this.input.keyboard.on('keydown-Z', () => {
-        console.log('Tecla Z presionada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateActive:', this.ultimateActive);
-        if (this.hasUltimatePotion && !this.player.isDead && !this.ultimateActive) {
-          // Usar poción de ultimate
-          this.ultimateCharge = 100; // Llenar barra de ultimate
-          this.hasUltimatePotion = false; // Consumir poción
-          console.log('Poción de ultimate usada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateCharge:', this.ultimateCharge);
-          // Aquí podrías añadir un efecto visual o sonido de uso de poción de ultimate
-        }
-      });
-
       this.ultimateCharge = 0;
       this.ultimateActive = false;
       this.ultimateDuration = 15000;
@@ -484,8 +420,16 @@ export class Mundo1Scene extends Phaser.Scene {
 
       // Crear goblins
       this.createGoblins();
+
+      // Añadir texto para mostrar si tiene poción
+      this.potionText = this.add.text(20, 50, '', {
+        font: 'bold 16px Arial',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3
+      }).setScrollFactor(0);
     } catch (error) {
-      console.error('Error en create:', error);
+      console.error('Error in create:', error);
       this.scene.start('Mundo1Scene');
     }
   }
@@ -1116,6 +1060,8 @@ export class Mundo1Scene extends Phaser.Scene {
   update() {
     try {
       this.debugSystem.update();
+      
+      // Actualizar fondos
       if (this.player) {
         const cam = this.cameras.main;
         const fondoWidth = 800;
@@ -1129,6 +1075,15 @@ export class Mundo1Scene extends Phaser.Scene {
           });
         });
       }
+
+      // Comprobar si se presiona la tecla F para usar la poción
+      if (this.cursors.usePotion.isDown && this.hasPotion) {
+        this.usePotion();
+      }
+
+      // Actualizar texto de la poción
+      this.potionText.setText(this.hasPotion ? 'Poción: F para usar' : '');
+
       if (!this.isAttacking && !this.activatingUltimate) {
         if (this.cursors.left.isDown) {
           this.player.body.setVelocityX(-240);
@@ -1215,8 +1170,36 @@ export class Mundo1Scene extends Phaser.Scene {
     } else if (healthPercent > 0.3) {
       this.playerHealthBar.fillColor = 0xffff00; // Amarillo
     } else {
-      this.playerHealthBar.fillColor = 0xff0000; // Rojo
+      this.playerHealthBar.fillColor = 0xff0000; // Rojo;
     }
+  }
+
+  usePotion() {
+    if (!this.hasPotion) return;
+
+    // Recargar la ultimate al 100%
+    this.ultimateCharge = 100;
+    this.hasPotion = false;
+
+    // Efecto visual de uso
+    const useText = this.add.text(this.player.x, this.player.y - 30, '¡Ultimate Recargada!', {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: useText,
+      y: this.player.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        useText.destroy();
+      }
+    });
   }
 }
 
@@ -1254,6 +1237,7 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.optimalDistance = 60;
     this.takeHitCooldown = false;
     this.takeHitCooldownTime = 500;
+    this.isLastGroup = x >= 2500;
 
     // Crear la barra de vida
     this.createHealthBar();
@@ -1512,15 +1496,72 @@ export class Goblin extends Phaser.Physics.Arcade.Sprite {
     this.healthBarBg.destroy();
     this.healthBar.destroy();
     
+    // Si es del último grupo, tiene 30% de probabilidad de soltar una poción
+    if (this.isLastGroup && Math.random() < 0.3 && !this.scene.hasPotion) {
+      new Potion(this.scene, this.x, this.y);
+    }
+    
     this.once('animationcomplete', () => {
       this.destroy();
     });
   }
 }
 
+export class Potion extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y) {
+    super(scene, x, y, 'potion');
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    // Configuración física
+    this.setBounce(0.2);
+    this.setCollideWorldBounds(true);
+    this.body.setGravityY(300);
+    this.setScale(0.5);
+    this.setDepth(10);
+
+    // Añadir colisión con el jugador
+    scene.physics.add.overlap(scene.player, this, this.collect, null, this);
+  }
+
+  collect() {
+    // Guardar la poción en el inventario
+    this.scene.hasPotion = true;
+    
+    // Efecto visual de recolección
+    const collectText = this.scene.add.text(this.x, this.y - 30, '¡Poción Recogida!', {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.scene.tweens.add({
+      targets: collectText,
+      y: this.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        collectText.destroy();
+      }
+    });
+
+    // Destruir la poción del mundo
+    this.destroy();
+  }
+}
+
 export class Mundo2Scene extends Phaser.Scene {
   constructor() {
     super('Mundo2Scene');
+    // Constantes para las barras de vida (copia de Mundo1)
+    this.HEALTH_BAR_WIDTH = 200;
+    this.HEALTH_BAR_HEIGHT = 20;
+    this.HEALTH_BAR_MARGIN_TOP = 20;
+    this.HEALTH_BAR_MARGIN_LEFT = 40;
+    this.hasPotion = false;
   }
 
   init() {
@@ -1530,45 +1571,18 @@ export class Mundo2Scene extends Phaser.Scene {
     this.objectPools = this.game.config.objectPools;
     this.gameState = this.game.config.gameState;
     this.debugSystem = new DebugSystem(this);
+    // No goblins in Mundo2
+    // this.goblins = []; 
   }
 
   preload() {
-    this.load.spritesheet('idle', '/assets/player/IDLE.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
-    this.load.spritesheet('run', '/assets/player/RUN.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
-    this.load.spritesheet('attack1', '/assets/player/ATTACK1.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
-    this.load.spritesheet('attack2', '/assets/player/ATTACK 2.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
-    this.load.spritesheet('attack3', '/assets/player/ATTACK 3.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
-    this.load.spritesheet('jump_attack', '/assets/player/JUMP_ATTACK.png', {
-      frameWidth: 128,
-      frameHeight: 108,
-      margin: 0,
-      spacing: 0
-    });
+    // Cargar assets del jugador y del entorno (copia de Mundo1, sin goblins)
+    this.load.spritesheet('idle', '/assets/player/IDLE.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('run', '/assets/player/RUN.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('attack1', '/assets/player/ATTACK 1.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('attack2', '/assets/player/ATTACK 2.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('attack3', '/assets/player/ATTACK 3.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('jump_attack', '/assets/player/JUMP_ATTACK.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
     this.load.image('bg1', '/assets/Background/1.png');
     this.load.image('bg2', '/assets/Background/2.png');
     this.load.image('bg3', '/assets/Background/3.png');
@@ -1588,6 +1602,17 @@ export class Mundo2Scene extends Phaser.Scene {
     this.load.spritesheet('attack3_ult', '/assets/player/ultimate/ATTACK 3 (FLAMING SWORD).png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
     this.load.spritesheet('jump_attack_ult', '/assets/player/ultimate/JUMP ATTACK (FLAMING SWORD).png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
     this.load.spritesheet('shout', '/assets/player/ultimate/SHOUT.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('death', '/assets/player/DEATH.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('hurt', '/assets/player/HURT.png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.spritesheet('hurt_ult', '/assets/player/ultimate/HURT (FLAMING SWORD).png', { frameWidth: 128, frameHeight: 108, margin: 0, spacing: 0 });
+    this.load.image('potion', '/assets/items/potion.png');
+
+    // Cargar animaciones del champiñón
+    this.load.spritesheet('mushroom_attack', '/assets/enemies/Mushroom/Attack.png', { frameWidth: 150, frameHeight: 150, margin: 0, spacing: 0 });
+    this.load.spritesheet('mushroom_death', '/assets/enemies/Mushroom/Death.png', { frameWidth: 150, frameHeight: 150, margin: 0, spacing: 0 });
+    this.load.spritesheet('mushroom_idle', '/assets/enemies/Mushroom/Idle.png', { frameWidth: 150, frameHeight: 150, margin: 0, spacing: 0 });
+    this.load.spritesheet('mushroom_run', '/assets/enemies/Mushroom/Run.png', { frameWidth: 150, frameHeight: 150, margin: 0, spacing: 0 });
+    this.load.spritesheet('mushroom_take_hit', '/assets/enemies/Mushroom/Take Hit.png', { frameWidth: 150, frameHeight: 150, margin: 0, spacing: 0 });
   }
 
   create() {
@@ -1595,67 +1620,17 @@ export class Mundo2Scene extends Phaser.Scene {
       this.debugSystem.init();
       this.physics.world.setBounds(0, 0, 3200, 600);
       this.cameras.main.fadeIn(500, 0, 0, 0);
-      if (!this.anims.exists('idle')) {
-        this.anims.create({
-          key: 'idle',
-          frames: this.anims.generateFrameNumbers('idle', { start: 0, end: 5 }),
-          frameRate: 12,
-          repeat: -1
-        });
-      }
-      if (!this.anims.exists('run')) {
-        this.anims.create({
-          key: 'run',
-          frames: this.anims.generateFrameNumbers('run', { start: 0, end: 7 }),
-          frameRate: 14,
-          repeat: -1
-        });
-      }
-      if (!this.anims.exists('attack1')) {
-        this.anims.create({
-          key: 'attack1',
-          frames: this.anims.generateFrameNumbers('attack1', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('attack2')) {
-        this.anims.create({
-          key: 'attack2',
-          frames: this.anims.generateFrameNumbers('attack2', { start: 0, end: 4 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('attack3')) {
-        this.anims.create({
-          key: 'attack3',
-          frames: this.anims.generateFrameNumbers('attack3', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('jump_attack')) {
-        this.anims.create({
-          key: 'jump_attack',
-          frames: this.anims.generateFrameNumbers('jump_attack', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      this.loadUltimateAnimations();
-      this.portal = this.physics.add.staticImage(300, 605 - 32, 'portal');
-      this.portal.setOrigin(0.5, 1);
-      this.portal.setScale(2);
-      this.portal.setDepth(5);
-      this.player = this.physics.add.sprite(320, 450, 'idle');
+
+      this.player = this.physics.add.sprite(320, 450, 'idle'); // Posición inicial en Mundo2
       this.player.setScale(1.5);
       this.player.setBounce(0.2);
       this.player.setCollideWorldBounds(true);
       this.player.body.setGravityY(300);
+
       this.cameras.main.setBounds(0, 0, 3200, 600);
       this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
       this.cameras.main.setZoom(1);
+
       this.ground = this.add.tileSprite(0, 605, 3200, 32, 'ground');
       this.ground.setOrigin(0, 1);
       this.groundCollider = this.physics.add.staticSprite(1600, 620 - 16, null);
@@ -1664,6 +1639,7 @@ export class Mundo2Scene extends Phaser.Scene {
       this.groundCollider.refreshBody();
       this.groundCollider.setVisible(false);
       this.physics.add.collider(this.player, this.groundCollider);
+
       this.bgLayers = [
         { key: 'bg3', depth: -30, speed: 0.7 },
         { key: 'bg2', depth: -20, speed: 0.8 },
@@ -1681,73 +1657,35 @@ export class Mundo2Scene extends Phaser.Scene {
           this.bgImages[layer.key].push(img);
         }
       });
+
       this.createTrees();
+
+      // Añadir el portal decorativo en la posición de inicio del jugador
+      this.add.image(320, 605 - 32, 'portal').setOrigin(0.5, 1).setScale(2).setDepth(5);
+
       this.cursors = this.input.keyboard.addKeys({
         jump: Phaser.Input.Keyboard.KeyCodes.W,
         left: Phaser.Input.Keyboard.KeyCodes.A,
-        down: Phaser.Input.Keyboard.KeyCodes.S, // Mantener la definición por si se usa en otro lado
+        down: Phaser.Input.Keyboard.KeyCodes.S,
         right: Phaser.Input.Keyboard.KeyCodes.D,
         attack2: Phaser.Input.Keyboard.KeyCodes.Q,
         attack3: Phaser.Input.Keyboard.KeyCodes.E,
-        ultimatePotion: Phaser.Input.Keyboard.KeyCodes.Z // Nueva tecla para poción de ultimate
+        usePotion: Phaser.Input.Keyboard.KeyCodes.F
       });
 
-      // Añadir variables para rastrear pociones
-      this.hasHealthPotion = false;
-      this.hasUltimatePotion = false;
-
-      if (!this.anims.exists('idle')) {
-        this.anims.create({
-          key: 'idle',
-          frames: this.anims.generateFrameNumbers('idle', { start: 0, end: 5 }),
-          frameRate: 12,
-          repeat: -1
-        });
-      }
-      if (!this.anims.exists('run')) {
-        this.anims.create({
-          key: 'run',
-          frames: this.anims.generateFrameNumbers('run', { start: 0, end: 7 }),
-          frameRate: 14,
-          repeat: -1
-        });
-      }
-      if (!this.anims.exists('attack1')) {
-        this.anims.create({
-          key: 'attack1',
-          frames: this.anims.generateFrameNumbers('attack1', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('attack2')) {
-        this.anims.create({
-          key: 'attack2',
-          frames: this.anims.generateFrameNumbers('attack2', { start: 0, end: 4 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('attack3')) {
-        this.anims.create({
-          key: 'attack3',
-          frames: this.anims.generateFrameNumbers('attack3', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
-      if (!this.anims.exists('jump_attack')) {
-        this.anims.create({
-          key: 'jump_attack',
-          frames: this.anims.generateFrameNumbers('jump_attack', { start: 0, end: 6 }),
-          frameRate: 18,
-          repeat: 0
-        });
-      }
+      // Copiar animaciones del jugador de Mundo1
+      if (!this.anims.exists('idle')) { this.anims.create({ key: 'idle', frames: this.anims.generateFrameNumbers('idle', { start: 0, end: 5 }), frameRate: 12, repeat: -1 }); }
+      if (!this.anims.exists('run')) { this.anims.create({ key: 'run', frames: this.anims.generateFrameNumbers('run', { start: 0, end: 7 }), frameRate: 14, repeat: -1 }); }
+      if (!this.anims.exists('attack1')) { this.anims.create({ key: 'attack1', frames: this.anims.generateFrameNumbers('attack1', { start: 0, end: 6 }), frameRate: 18, repeat: 0 }); }
+      if (!this.anims.exists('attack2')) { this.anims.create({ key: 'attack2', frames: this.anims.generateFrameNumbers('attack2', { start: 0, end: 4 }), frameRate: 18, repeat: 0 }); }
+      if (!this.anims.exists('attack3')) { this.anims.create({ key: 'attack3', frames: this.anims.generateFrameNumbers('attack3', { start: 0, end: 6 }), frameRate: 18, repeat: 0 }); }
+      if (!this.anims.exists('jump_attack')) { this.anims.create({ key: 'jump_attack', frames: this.anims.generateFrameNumbers('jump_attack', { start: 0, end: 6 }), frameRate: 18, repeat: 0 }); }
       this.loadUltimateAnimations();
       this.player.anims.play('idle', true);
       this.player.setDepth(10);
+
       this.isAttacking = false;
+      this.activatingUltimate = false;
       this.attackCooldown = false;
       this.attackCooldownTime = 400;
       this.attack2Cooldown = false;
@@ -1756,137 +1694,37 @@ export class Mundo2Scene extends Phaser.Scene {
       this.attack3CooldownTime = 800;
       this.jumpAttackCooldown = false;
       this.jumpAttackCooldownTime = 1200;
-      this.input.on('pointerdown', (pointer) => {
-        if (pointer.leftButtonDown() && !this.isAttacking) {
-          if (this.player.body.touching.down && !this.attackCooldown) {
-            this.isAttacking = true;
-            this.attackCooldown = true;
-            this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
-            this.player.setVelocityX(0);
-            this.attackMelee();
-            this.time.delayedCall(this.attackCooldownTime, () => {
-              this.attackCooldown = false;
-            });
-          } else if (!this.player.body.touching.down && !this.jumpAttackCooldown) {
-            this.isAttacking = true;
-            this.jumpAttackCooldown = true;
-            this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
-            this.player.setVelocityX(0);
-            this.attackMeleeAir();
-            this.time.delayedCall(this.jumpAttackCooldownTime, () => {
-              this.jumpAttackCooldown = false;
-            });
-          }
-        }
-      });
-      this.player.on('animationcomplete-attack1', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
-        }
-      });
-      this.player.on('animationcomplete-attack2', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
-        }
-      });
-      this.player.on('animationcomplete-attack3', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
-        }
-      });
-      this.player.on('animationcomplete-jump_attack', () => {
-        this.isAttacking = false;
-        if (!this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
-        }
-      });
-      this.player.on('animationcomplete-attack1_ult', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play('idle_ult', true);
-        }
-      });
-      this.player.on('animationcomplete-attack2_ult', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play('idle_ult', true);
-        }
-      });
-      this.player.on('animationcomplete-attack3_ult', () => {
-        this.isAttacking = false;
-        if (this.player.body.touching.down) {
-          this.player.anims.play('idle_ult', true);
-        }
-      });
-      this.player.on('animationcomplete-jump_attack_ult', () => {
-        this.isAttacking = false;
-        if (!this.player.body.touching.down) {
-          this.player.anims.play('idle_ult', true);
-        }
-      });
-      this.input.keyboard.on('keydown-Q', () => {
-        console.log('Tecla Q presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack2Cooldown:', this.attack2Cooldown);
-        if (!this.isAttacking && this.player.body.touching.down && !this.attack2Cooldown) {
-          this.isAttacking = true;
-          this.attack2Cooldown = true;
-          this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
-          this.player.setVelocityX(0);
-          this.attackMelee2();
-          this.time.delayedCall(this.attack2CooldownTime, () => {
-            this.attack2Cooldown = false;
-          });
-        }
-      });
-      this.input.keyboard.on('keydown-E', () => {
-        console.log('Tecla E presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack3Cooldown:', this.attack3Cooldown);
-        if (!this.isAttacking && this.player.body.touching.down && !this.attack3Cooldown) {
-          this.isAttacking = true;
-          this.attack3Cooldown = true;
-          this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
-          this.player.setVelocityX(0);
-          this.attackMelee3();
-          this.time.delayedCall(this.attack3CooldownTime, () => {
-            this.attack3Cooldown = false;
-          });
-        }
-      });
 
-      // Listener para usar poción de vida con 'S'
-      this.input.keyboard.on('keydown-S', () => {
-        console.log('Tecla S presionada. hasHealthPotion:', this.hasHealthPotion);
-        if (this.hasHealthPotion && !this.player.isDead) {
-          // Usar poción de vida
-          const healAmount = 100;
-          this.healPlayer(healAmount);
-          this.hasHealthPotion = false; // Consumir poción
-          console.log('Poción de vida usada. hasHealthPotion:', this.hasHealthPotion);
-          // Aquí podrías añadir un efecto visual o sonido de uso de poción de vida
-        }
-      });
+      // Configurar UI (copia de Mundo1)
+      this.player.hp = 300;
+      this.player.maxHp = 300;
+      this.player.isDead = false;
 
-      // Listener para usar poción de ultimate con 'Z'
-      this.input.keyboard.on('keydown-Z', () => {
-        console.log('Tecla Z presionada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateActive:', this.ultimateActive);
-        if (this.hasUltimatePotion && !this.player.isDead && !this.ultimateActive) {
-          // Usar poción de ultimate
-          this.ultimateCharge = 100; // Llenar barra de ultimate
-          this.hasUltimatePotion = false; // Consumir poción
-          console.log('Poción de ultimate usada. hasUltimatePotion:', this.hasUltimatePotion, ' ultimateCharge:', this.ultimateCharge);
-          // Aquí podrías añadir un efecto visual o sonido de uso de poción de ultimate
-        }
-      });
+      this.playerHealthBarBg = this.add.rectangle(
+        this.HEALTH_BAR_MARGIN_LEFT,
+        this.HEALTH_BAR_MARGIN_TOP,
+        this.HEALTH_BAR_WIDTH,
+        this.HEALTH_BAR_HEIGHT,
+        0x666666
+      ).setOrigin(0, 0).setScrollFactor(0);
+
+      this.playerHealthBar = this.add.rectangle(
+        this.HEALTH_BAR_MARGIN_LEFT,
+        this.HEALTH_BAR_MARGIN_TOP,
+        this.HEALTH_BAR_WIDTH,
+        this.HEALTH_BAR_HEIGHT,
+        0x00ff00
+      ).setOrigin(0, 0).setScrollFactor(0);
 
       this.ultimateCharge = 0;
       this.ultimateActive = false;
       this.ultimateDuration = 15000;
       this.ultimateTimeLeft = 0;
+
       const barWidth = 200;
       const barHeight = 20;
       const marginTop = 20;
-      const centerX = this.cameras.main.width - barWidth - 20; // Cambiar a la derecha
+      const centerX = this.cameras.main.width - barWidth - 20;
       this.ultimateBarBg = this.add.rectangle(centerX, marginTop, barWidth, barHeight, 0x222222)
         .setOrigin(0, 0)
         .setScrollFactor(0);
@@ -1896,17 +1734,97 @@ export class Mundo2Scene extends Phaser.Scene {
       this.ultimateText = this.add.text(centerX + barWidth + 10, marginTop, '', { font: 'bold 16px Arial', fill: '#fff' })
         .setOrigin(0, 0)
         .setScrollFactor(0);
+
       this.scale.on('resize', (gameSize) => {
-        const newCenterX = gameSize.width - barWidth - 20; // Actualizar posición en resize
+        const newCenterX = gameSize.width - barWidth - 20;
         this.ultimateBarBg.x = newCenterX;
         this.ultimateBar.x = newCenterX;
         this.ultimateText.x = newCenterX + barWidth + 10;
       });
 
-      // Crear goblins
-      this.createGoblins();
+      // Añadir texto para mostrar si tiene poción (copia de Mundo1)
+      this.potionText = this.add.text(20, 50, '', {
+        font: 'bold 16px Arial',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3
+      }).setScrollFactor(0);
+
+      // Configurar eventos de ataque (copia de Mundo1, sin interacción con goblins)
+      this.input.on('pointerdown', (pointer) => {
+        if (pointer.leftButtonDown() && !this.isAttacking) {
+          if (this.player.body.touching.down && !this.attackCooldown) {
+            this.isAttacking = true;
+            this.attackCooldown = true;
+            this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
+            this.player.setVelocityX(0);
+            // Sin ataque a goblins en Mundo2
+            // this.attackMelee();
+            this.time.delayedCall(this.attackCooldownTime, () => { this.attackCooldown = false; });
+          } else if (!this.player.body.touching.down && !this.jumpAttackCooldown) {
+            this.isAttacking = true;
+            this.jumpAttackCooldown = true;
+            this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
+            this.player.setVelocityX(0);
+            // Sin ataque a goblins en Mundo2
+            // this.attackMeleeAir();
+            this.time.delayedCall(this.jumpAttackCooldownTime, () => { this.jumpAttackCooldown = false; });
+          }
+        }
+      });
+
+      // Copiar eventos de animación de ataque (copia de Mundo1)
+      this.player.on('animationcomplete-attack1', () => { console.debug('Animación attack1 completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true); } });
+      this.player.on('animationcomplete-attack2', () => { console.debug('Animación attack2 completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true); } });
+      this.player.on('animationcomplete-attack3', () => { console.debug('Animación attack3 completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true); } });
+      this.player.on('animationcomplete-jump_attack', () => { console.debug('Animación jump_attack completada, restableciendo estado'); this.isAttacking = false; if (!this.player.body.touching.down) { this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true); } });
+      this.player.on('animationcomplete-attack1_ult', () => { console.debug('Animación attack1_ult completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play('idle_ult', true); } });
+      this.player.on('animationcomplete-attack2_ult', () => { console.debug('Animación attack2_ult completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play('idle_ult', true); } });
+      this.player.on('animationcomplete-attack3_ult', () => { console.debug('Animación attack3_ult completada, restableciendo estado'); this.isAttacking = false; if (this.player.body.touching.down) { this.player.anims.play('idle_ult', true); } });
+      this.player.on('animationcomplete-jump_attack_ult', () => { console.debug('Animación jump_attack_ult completada, restableciendo estado'); this.isAttacking = false; if (!this.player.body.touching.down) { this.player.anims.play('idle_ult', true); } });
+
+      // Copiar eventos de teclado para ataques especiales (copia de Mundo1, sin interacción con goblins)
+      this.input.keyboard.on('keydown-Q', () => {
+        console.log('Tecla Q presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack2Cooldown:', this.attack2Cooldown);
+        if (!this.isAttacking && this.player.body.touching.down && !this.attack2Cooldown) {
+          this.isAttacking = true;
+          this.attack2Cooldown = true;
+          this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
+          this.player.setVelocityX(0);
+          // Sin ataque a goblins en Mundo2
+          // this.attackMelee2();
+          this.time.delayedCall(this.attack2CooldownTime, () => { this.attack2Cooldown = false; });
+        }
+      });
+      this.input.keyboard.on('keydown-E', () => {
+        console.log('Tecla E presionada. ultimateActive:', this.ultimateActive, ' isAttacking:', this.isAttacking, ' touching.down:', this.player.body.touching.down, ' attack3Cooldown:', this.attack3Cooldown);
+        if (!this.isAttacking && this.player.body.touching.down && !this.attack3Cooldown) {
+          this.isAttacking = true;
+          this.attack3Cooldown = true;
+          this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
+          this.player.setVelocityX(0);
+          // Sin ataque a goblins en Mundo2
+          // this.attackMelee3();
+          this.time.delayedCall(this.attack3CooldownTime, () => { this.attack3Cooldown = false; });
+        }
+      });
+
+      this.input.keyboard.enabled = true;
+      this.game.canvas.tabIndex = 0;
+      this.game.canvas.focus();
+
+      // Copiar evento de tecla R para ultimate (copia de Mundo1)
+      this.input.keyboard.on('keydown-R', () => {
+        if (this.ultimateCharge >= 99 && !this.ultimateActive) {
+          this.activateUltimate();
+        }
+      });
+
+      // Crear champiñones (enemigos del Mundo 2)
+      this.createMushrooms();
+
     } catch (error) {
-      console.error('Error in game creation:', error);
+      console.error('Error in create:', error);
       this.scene.start('Mundo2Scene');
     }
   }
@@ -2070,50 +1988,31 @@ export class Mundo2Scene extends Phaser.Scene {
 
     let hitEnemy = false;
     let totalDamage = 0;
-    this.goblins.forEach(goblin => {
-      if (goblin && !goblin.isDead) {
-        const goblinBounds = goblin.getBounds();
-        const hitboxBounds = this.attackHitbox.getBounds();
-        
-        if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          // Verificar si el jugador está mirando hacia el goblin
-          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
-                                (facing === 1 && goblin.x > this.player.x);
-          
-          if (isFacingGoblin) {
-            const damage = this.ultimateActive ? 64 : 40;
-            goblin.takeDamage(damage);
-            totalDamage += damage;
-            if (this.ultimateActive) {
-              this.applyDamageOverTime(goblin, 15);
-              totalDamage += 45; // 15 * 3 ticks de DoT
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = this.attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 62 : 50;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
             }
-            hitEnemy = true;
           }
         }
-      }
-    });
-
-    if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 10);
-    } else if (hitEnemy && this.ultimateActive) {
-      // Curar 10% del daño total infligido
-      const healAmount = Math.floor(totalDamage * 0.1);
-      this.healPlayer(healAmount);
+      });
     }
 
-    this.player.once('animationcomplete-attack2', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-attack2_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 10); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { this.attackHitbox.destroy(); });
   }
 
   attackMelee3() {
@@ -2133,50 +2032,31 @@ export class Mundo2Scene extends Phaser.Scene {
 
     let hitEnemy = false;
     let totalDamage = 0;
-    this.goblins.forEach(goblin => {
-      if (goblin && !goblin.isDead) {
-        const goblinBounds = goblin.getBounds();
-        const hitboxBounds = this.attackHitbox.getBounds();
-        
-        if (Phaser.Geom.Rectangle.Overlaps(goblinBounds, hitboxBounds)) {
-          // Verificar si el jugador está mirando hacia el goblin
-          const isFacingGoblin = (facing === -1 && goblin.x < this.player.x) || 
-                                (facing === 1 && goblin.x > this.player.x);
-          
-          if (isFacingGoblin) {
-            const damage = this.ultimateActive ? 64 : 40;
-            goblin.takeDamage(damage);
-            totalDamage += damage;
-            if (this.ultimateActive) {
-              this.applyDamageOverTime(goblin, 15);
-              totalDamage += 45; // 15 * 3 ticks de DoT
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = this.attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 42 : 35;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
             }
-            hitEnemy = true;
           }
         }
-      }
-    });
-
-    if (hitEnemy && !this.ultimateActive) {
-      this.ultimateCharge = Math.min(100, this.ultimateCharge + 12);
-    } else if (hitEnemy && this.ultimateActive) {
-      // Curar 10% del daño total infligido
-      const healAmount = Math.floor(totalDamage * 0.1);
-      this.healPlayer(healAmount);
+      });
     }
 
-    this.player.once('animationcomplete-attack3', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-attack3_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 12); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { this.attackHitbox.destroy(); });
   }
 
   healPlayer(amount) {
@@ -2428,35 +2308,14 @@ export class Mundo2Scene extends Phaser.Scene {
   }
 
   createGoblins() {
-    // Crear goblins en diferentes posiciones a lo largo del mundo
-    const goblinPositions = [
-      { x: 500, y: 555 },    // Primer grupo
-      { x: 530, y: 555 },
-      { x: 560, y: 555 },
-      { x: 1000, y: 555 },   // Segundo grupo
-      { x: 1030, y: 555 },
-      { x: 1060, y: 555 },
-      { x: 1500, y: 555 },   // Tercer grupo
-      { x: 1530, y: 555 },
-      { x: 1560, y: 555 },
-      { x: 2000, y: 555 },   // Cuarto grupo
-      { x: 2030, y: 555 },
-      { x: 2060, y: 555 },
-      { x: 2500, y: 555 },   // Quinto grupo
-      { x: 2530, y: 555 },
-      { x: 2560, y: 555 }
-    ];
-
-    goblinPositions.forEach(pos => {
-      const goblin = new Goblin(this, pos.x, pos.y);
-      this.goblins.push(goblin);
-      this.physics.add.collider(goblin, this.groundCollider);
-    });
+    // Método no utilizado en Mundo2Scene, se puede eliminar o dejar vacío si se planea usar en el futuro
   }
 
   update() {
     try {
       this.debugSystem.update();
+      
+      // Actualizar fondos
       if (this.player) {
         const cam = this.cameras.main;
         const fondoWidth = 800;
@@ -2470,6 +2329,15 @@ export class Mundo2Scene extends Phaser.Scene {
           });
         });
       }
+
+      // Comprobar si se presiona la tecla F para usar la poción
+      if (this.cursors.usePotion.isDown && this.hasPotion) {
+        this.usePotion();
+      }
+
+      // Actualizar texto de la poción
+      this.potionText.setText(this.hasPotion ? 'Poción: F para usar' : '');
+
       if (!this.isAttacking && !this.activatingUltimate) {
         if (this.cursors.left.isDown) {
           this.player.body.setVelocityX(-240);
@@ -2558,5 +2426,507 @@ export class Mundo2Scene extends Phaser.Scene {
     } else {
       this.playerHealthBar.fillColor = 0xff0000; // Rojo
     }
+  }
+
+  usePotion() {
+    if (!this.hasPotion) return;
+
+    // Recargar la ultimate al 100%
+    this.ultimateCharge = 100;
+    this.hasPotion = false;
+
+    // Efecto visual de uso
+    const useText = this.add.text(this.player.x, this.player.y - 30, '¡Ultimate Recargada!', {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: useText,
+      y: this.player.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        useText.destroy();
+      }
+    });
+  }
+
+  // Métodos de ataque que interactuarán con champiñones
+  attackMelee() {
+    const meleeWidth = 60;
+    const meleeHeight = 80;
+    const facing = this.player.flipX ? -1 : 1;
+    const offsetX = facing * 5;
+    const hitboxX = this.player.x + offsetX;
+    const hitboxY = this.player.y - 10;
+
+    const attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
+    this.physics.add.existing(attackHitbox);
+    attackHitbox.body.setAllowGravity(false);
+    attackHitbox.body.setImmovable(true);
+    attackHitbox.visible = false;
+
+    let hitEnemy = false;
+    let totalDamage = 0;
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 64 : 40;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
+            }
+          }
+        }
+      });
+    }
+
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 5); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { attackHitbox.destroy(); }); // Destruir hitbox después de un corto tiempo
+  }
+
+  attackMeleeAir() {
+    const meleeWidth = 90;
+    const meleeHeight = 110;
+    const facing = this.player.flipX ? -1 : 1;
+    const offsetX = facing * 5;
+    const hitboxX = this.player.x + offsetX;
+    const hitboxY = this.player.y - 10;
+
+    const attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
+    this.physics.add.existing(attackHitbox);
+    attackHitbox.body.setAllowGravity(false);
+    attackHitbox.body.setImmovable(true);
+    attackHitbox.visible = false;
+
+    let hitEnemy = false;
+    let totalDamage = 0;
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 50 : 30;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
+            }
+          }
+        }
+      });
+    }
+
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 7); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { attackHitbox.destroy(); });
+  }
+
+  attackMelee2() {
+    const meleeWidth = 70;
+    const meleeHeight = 90;
+    const facing = this.player.flipX ? -1 : 1;
+    const offsetX = facing * 5;
+    const hitboxX = this.player.x + offsetX;
+    const hitboxY = this.player.y - 10;
+    
+    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
+    this.physics.add.existing(this.attackHitbox);
+    this.attackHitboxBody = this.attackHitbox.body;
+    this.attackHitboxBody.setAllowGravity(false);
+    this.attackHitboxBody.setImmovable(true);
+    this.attackHitbox.visible = false;
+
+    let hitEnemy = false;
+    let totalDamage = 0;
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = this.attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 62 : 50;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
+            }
+          }
+        }
+      });
+    }
+
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 10); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { this.attackHitbox.destroy(); });
+  }
+
+  attackMelee3() {
+    const meleeWidth = 80;
+    const meleeHeight = 100;
+    const facing = this.player.flipX ? -1 : 1;
+    const offsetX = facing * 5;
+    const hitboxX = this.player.x + offsetX;
+    const hitboxY = this.player.y - 10;
+    
+    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
+    this.physics.add.existing(this.attackHitbox);
+    this.attackHitboxBody = this.attackHitbox.body;
+    this.attackHitboxBody.setAllowGravity(false);
+    this.attackHitboxBody.setImmovable(true);
+    this.attackHitbox.visible = false;
+
+    let hitEnemy = false;
+    let totalDamage = 0;
+    if (this.mushrooms) {
+      this.mushrooms.forEach(mushroom => {
+        if (mushroom && !mushroom.isDead) {
+          const mushroomBounds = mushroom.getBounds();
+          const hitboxBounds = this.attackHitbox.getBounds();
+
+          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
+            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
+            if (isFacingMushroom) {
+              const damage = this.ultimateActive ? 42 : 35;
+              mushroom.takeDamage(damage);
+              totalDamage += damage;
+              if (this.ultimateActive) { this.applyDamageOverTime(mushroom, 15); totalDamage += 45; }
+              else { this.showDamageText(mushroom.x, mushroom.y - 30, damage); }
+              hitEnemy = true;
+            }
+          }
+        }
+      });
+    }
+
+    if (hitEnemy && !this.ultimateActive) { this.ultimateCharge = Math.min(100, this.ultimateCharge + 12); }
+    else if (hitEnemy && this.ultimateActive) { const healAmount = Math.floor(totalDamage * 0.1); this.healPlayer(healAmount); }
+
+    this.time.delayedCall(100, () => { this.attackHitbox.destroy(); });
+  }
+
+  applyDamageOverTime(mushroom, damage) {
+    // Aplicar el daño inicial
+    mushroom.takeDamage(damage, true);
+
+    // Mostrar texto de daño inicial
+    this.showDamageText(mushroom.x, mushroom.y - 30, damage, '#ff0000');
+
+    // Programar el daño adicional cada segundo durante 3 segundos
+    let ticks = 0;
+    const damageInterval = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        if (mushroom && !mushroom.isDead && ticks < 3) {
+          mushroom.takeDamage(damage, true);
+          this.showDamageText(mushroom.x, mushroom.y - 30, damage, '#ff0000');
+          ticks++;
+        } else {
+          damageInterval.remove();
+        }
+      },
+      callbackScope: this,
+      repeat: 2
+    });
+  }
+
+  showDamageText(x, y, amount, color = '#ff0000') {
+    const damageText = this.add.text(x, y, `-${amount}`, {
+      font: 'bold 20px Arial',
+      fill: color,
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: damageText,
+      y: y - 30,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => { damageText.destroy(); }
+    });
+  }
+
+  createMushrooms() {
+    // Crear champiñones en diferentes posiciones a lo largo del mundo
+    const mushroomPositions = [
+      { x: 500, y: 555 }, { x: 530, y: 555 },
+      { x: 1000, y: 555 }, { x: 1030, y: 555 },
+      { x: 1500, y: 555 }, { x: 1530, y: 555 },
+      { x: 2000, y: 555 }, { x: 2030, y: 555 },
+      { x: 2500, y: 555 }, { x: 2530, y: 555 }
+    ];
+
+    this.mushrooms = [];
+    mushroomPositions.forEach(pos => {
+      const mushroom = new Mushroom(this, pos.x, pos.y);
+      this.mushrooms.push(mushroom);
+      this.physics.add.collider(mushroom, this.groundCollider);
+      // Añadir colisión del champiñón con el jugador para daño
+      this.physics.add.collider(this.player, mushroom, this.hitPlayer, null, this);
+    });
+  }
+
+  hitPlayer(player, mushroom) {
+    if (!player.isDead && !mushroom.isDead && !player.isTakingHit && !mushroom.isAttacking) {
+      const damage = mushroom.attackDamage; // Usar el daño del champiñón
+      this.takePlayerDamage(damage);
+
+      // Añadir retroceso al jugador
+      const knockbackDirection = player.x < mushroom.x ? -1 : 1;
+      player.setVelocityX(knockbackDirection * 200); // Ajustar la fuerza del retroceso si es necesario
+      player.setVelocityY(-100); // Pequeño salto hacia arriba
+    }
+  }
+}
+
+export class Mushroom extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y) {
+    super(scene, x, y, 'mushroom_idle');
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    // Configuración física
+    this.setBounce(0.2);
+    this.setCollideWorldBounds(true);
+    this.body.setGravityY(300);
+    this.setScale(1);
+    this.setDepth(10);
+
+    // Ajustar la hitbox del champiñón
+    this.body.setSize(80, 100); // Ajustar tamaño según el sprite
+    this.body.setOffset(35, 40); // Ajustar offset según el sprite
+
+    // Propiedades del champiñón
+    this.health = 150; // Menos vida que el goblin
+    this.maxHealth = 150;
+    this.speed = 80; // Menos velocidad que el goblin
+    this.attackDamage = 15; // Menos daño que el goblin
+    this.isAttacking = false;
+    this.isDead = false;
+    this.isTakingHit = false;
+    this.direction = 1;
+    this.attackRange = 50; // Rango de ataque
+    this.attackDelay = 500; // Retraso antes de aplicar daño en el ataque
+    this.attackCooldown = false;
+    this.attackCooldownTime = 500; // Cooldown del ataque
+    this.takeHitCooldown = false;
+    this.takeHitCooldownTime = 300; // Cooldown de recibir daño
+
+    // Crear la barra de vida
+    this.createHealthBar();
+
+    // Crear animaciones si no existen
+    this.createAnimations();
+
+    // Iniciar con animación idle
+    this.play('mushroom_idle');
+  }
+
+  createAnimations() {
+    if (!this.scene.anims.exists('mushroom_idle')) { this.scene.anims.create({ key: 'mushroom_idle', frames: this.scene.anims.generateFrameNumbers('mushroom_idle', { start: 0, end: 3 }), frameRate: 8, repeat: -1 }); }
+    if (!this.scene.anims.exists('mushroom_run')) { this.scene.anims.create({ key: 'mushroom_run', frames: this.scene.anims.generateFrameNumbers('mushroom_run', { start: 0, end: 7 }), frameRate: 12, repeat: -1 }); }
+    if (!this.scene.anims.exists('mushroom_attack')) { this.scene.anims.create({ key: 'mushroom_attack', frames: this.scene.anims.generateFrameNumbers('mushroom_attack', { start: 0, end: 7 }), frameRate: 15, repeat: 0 }); }
+    if (!this.scene.anims.exists('mushroom_take_hit')) { this.scene.anims.create({ key: 'mushroom_take_hit', frames: this.scene.anims.generateFrameNumbers('mushroom_take_hit', { start: 0, end: 3 }), frameRate: 10, repeat: 0 }); }
+    if (!this.scene.anims.exists('mushroom_death')) { this.scene.anims.create({ key: 'mushroom_death', frames: this.scene.anims.generateFrameNumbers('mushroom_death', { start: 0, end: 3 }), frameRate: 8, repeat: 0 }); }
+  }
+
+  createHealthBar() {
+    const barWidth = 50;
+    const barHeight = 5;
+    const offsetY = -40;
+    this.healthBarBg = this.scene.add.rectangle(this.x, this.y + offsetY, barWidth, barHeight, 0x666666).setOrigin(0.5, 0.5);
+    this.healthBar = this.scene.add.rectangle(this.x, this.y + offsetY, barWidth, barHeight, 0x00ff00).setOrigin(0.5, 0.5);
+    this.healthBarBg.setDepth(11);
+    this.healthBar.setDepth(11);
+  }
+
+  updateHealthBar() {
+    const healthPercent = this.health / this.maxHealth;
+    const barWidth = 50;
+    this.healthBar.width = barWidth * healthPercent;
+    if (healthPercent > 0.6) { this.healthBar.fillColor = 0x00ff00; }
+    else if (healthPercent > 0.3) { this.healthBar.fillColor = 0xffff00; }
+    else { this.healthBar.fillColor = 0xff0000; }
+  }
+
+  update(player) {
+    if (this.isDead || this.isTakingHit) return;
+
+    // Actualizar posición de la barra de vida
+    const offsetY = -40;
+    this.healthBarBg.x = this.x;
+    this.healthBarBg.y = this.y + offsetY;
+    this.healthBar.x = this.x - (50 - this.healthBar.width) / 2;
+    this.healthBar.y = this.y + offsetY;
+
+    const distance = Phaser.Math.Distance.Between(
+      this.x, this.y,
+      player.x, player.y
+    );
+
+    // Si está atacando, mantener la posición
+    if (this.isAttacking) { this.setVelocityX(0); return; }
+
+    // Si el jugador está cerca, atacar
+    if (distance < this.attackRange && !this.isAttacking && !this.attackCooldown) {
+      this.attackPosition = { x: this.x, y: this.y };
+      this.attack(player);
+    }
+    // Si el jugador está a una distancia media, perseguir
+    else if (distance < 200 && !this.isAttacking) { // Rango de detección reducido para champiñones
+      this.chasePlayer(player);
+    }
+    // Si no, estar idle
+    else if (!this.isAttacking) {
+      this.play('mushroom_idle', true);
+      this.setVelocityX(0);
+    }
+  }
+
+  chasePlayer(player) {
+    const direction = player.x < this.x ? -1 : 1;
+    this.direction = direction;
+    this.setVelocityX(this.speed * direction);
+    this.play('mushroom_run', true);
+    this.flipX = direction < 0;
+  }
+
+  attack(player) {
+    if (!this.isAttacking && !this.attackCooldown) {
+      this.isAttacking = true;
+      this.attackCooldown = true;
+      this.setVelocityX(0);
+      this.play('mushroom_attack', true);
+
+      // Aplicar el daño después de un pequeño retraso
+      this.scene.time.delayedCall(this.attackDelay, () => {
+        const distance = Phaser.Math.Distance.Between(
+          this.x, this.y,
+          player.x, player.y
+        );
+        if (distance < this.attackRange) { /* Daño al jugador se maneja en la colisión */ }
+      });
+
+      this.once('animationcomplete', () => {
+        this.isAttacking = false;
+        this.scene.time.delayedCall(this.attackCooldownTime, () => { this.attackCooldown = false; });
+      });
+    }
+  }
+
+  takeDamage(amount, isDot = false) {
+    if (this.isDead || (this.isTakingHit && !isDot)) return;
+
+    this.health -= amount;
+    this.updateHealthBar();
+
+    this.scene.showDamageText(this.x, this.y - 30, amount);
+
+    if (!isDot) {
+      this.isTakingHit = true;
+      this.setVelocityX(0); // Detener movimiento al recibir golpe
+      this.play('mushroom_take_hit', true);
+
+      // Añadir un pequeño retroceso
+      const knockbackDirection = this.scene.player.x < this.x ? 1 : -1;
+      this.setVelocityX(knockbackDirection * 50); // Ajustar fuerza de retroceso
+
+      this.once('animationcomplete-mushroom_take_hit', () => {
+        this.isTakingHit = false;
+        // Restaurar velocidad después de recibir golpe, si no está muerto o atacando
+        if (!this.isDead && !this.isAttacking) {
+             const direction = this.scene.player.x < this.x ? -1 : 1;
+             this.setVelocityX(this.speed * direction);
+        }
+      });
+       this.scene.time.delayedCall(this.takeHitCooldownTime, () => { this.takeHitCooldown = false; });
+    }
+
+    if (this.health <= 0) { this.die(); }
+  }
+
+  die() {
+    this.isDead = true;
+    this.setVelocityX(0);
+    this.play('mushroom_death', true);
+
+    this.healthBarBg.destroy();
+    this.healthBar.destroy();
+
+    this.once('animationcomplete', () => { this.destroy(); });
+  }
+}
+
+export class Potion extends Phaser.Physics.Arcade.Sprite {
+  constructor(scene, x, y) {
+    super(scene, x, y, 'potion');
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    // Configuración física
+    this.setBounce(0.2);
+    this.setCollideWorldBounds(true);
+    this.body.setGravityY(300);
+    this.setScale(0.5);
+    this.setDepth(10);
+
+    // Añadir colisión con el jugador
+    scene.physics.add.overlap(scene.player, this, this.collect, null, this);
+  }
+
+  collect() {
+    // Guardar la poción en el inventario
+    this.scene.hasPotion = true;
+
+    // Efecto visual de recolección
+    const collectText = this.scene.add.text(this.x, this.y - 30, '¡Poción Recogida!', {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.scene.tweens.add({
+      targets: collectText,
+      y: this.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        collectText.destroy();
+      }
+    });
+
+    // Destruir la poción del mundo
+    this.destroy();
   }
 }
