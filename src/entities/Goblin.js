@@ -1,4 +1,5 @@
 import { Enemy } from './Enemy';
+import { Potion } from '../scenes/GameScenes';
 
 export class Goblin extends Enemy {
   constructor(scene, x, y) {
@@ -6,7 +7,7 @@ export class Goblin extends Enemy {
     this.health = 250;
     this.maxHealth = 250;
     this.speed = 100;
-    this.attackDamage = 20;
+    this.attackDamage = 50;
     this.attackRange = 60;
     this.attackDelay = 400;
     this.attackCooldownTime = 300;
@@ -165,11 +166,28 @@ export class Goblin extends Enemy {
     this.play('goblin_death', true);
     this.healthBarBg.destroy();
     this.healthBar.destroy();
-    if (this.isLastGroup && Math.random() < 0.3 && !this.scene.hasPotion) {
-      if (typeof window !== 'undefined' && window.Potion) {
-        new window.Potion(this.scene, this.x, this.y);
+    
+    // Añadir puntos al matar al goblin
+    this.scene.updateScore(25);
+    
+    // Verificar si es el último goblin del último grupo
+    if (this.isLastGroup) {
+      console.log('Goblin del último grupo eliminado');
+      const lastGroupGoblins = this.scene.goblins.filter(goblin => 
+        goblin && !goblin.isDead && goblin.x >= 2500 && goblin !== this
+      );
+      
+      console.log('Goblins restantes en el último grupo:', lastGroupGoblins.length);
+      
+      // Si no quedan goblins vivos en el último grupo, dropear poción
+      if (lastGroupGoblins.length === 0) {
+        console.log('Dropeando poción');
+        const potion = new Potion(this.scene, this.x, this.y);
+        this.scene.physics.add.existing(potion);
+        this.scene.physics.add.overlap(this.scene.player, potion, potion.collect, null, potion);
       }
     }
+    
     this.once('animationcomplete', () => {
       this.destroy();
     });

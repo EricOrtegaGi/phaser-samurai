@@ -13,9 +13,11 @@ export class Mundo1Scene extends Phaser.Scene {
     this.HEALTH_BAR_MARGIN_TOP = 20;
     this.HEALTH_BAR_MARGIN_LEFT = 40;
     this.hasPotion = false;
+    this.score = 0; // Añadir puntuación inicial
+    this.deathCount = 0;
   }
 
-  init() {
+  init(data) {
     this.parentVue = this.game.config.parentVue;
     this.resourceManager = this.game.config.resourceManager;
     this.eventBus = this.game.config.eventBus;
@@ -23,6 +25,10 @@ export class Mundo1Scene extends Phaser.Scene {
     this.gameState = this.game.config.gameState;
     this.debugSystem = new DebugSystem(this);
     this.goblins = [];
+    this.hasPotion = data && data.hasPotion !== undefined ? data.hasPotion : false;
+    this.score = data && data.score !== undefined ? data.score : 0;
+    this.initialScore = this.score;
+    this.deathCount = data && data.deathCount !== undefined ? data.deathCount : 0;
   }
 
   preload() {
@@ -191,7 +197,12 @@ export class Mundo1Scene extends Phaser.Scene {
         this.physics.world.disable(this.portal);
         this.cameras.main.fade(500, 0, 0, 0);
         this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start('Mundo2Scene');
+          // Pasar el estado de la poción y la puntuación al Mundo2Scene
+          this.scene.start('Mundo2Scene', { 
+            hasPotion: this.hasPotion,
+            score: this.score,
+            deathCount: this.deathCount
+          });
         });
       }, null, this);
       this.cursors = this.input.keyboard.addKeys({
@@ -429,7 +440,15 @@ export class Mundo1Scene extends Phaser.Scene {
       this.createGoblins();
 
       // Añadir texto para mostrar si tiene poción
-      this.potionText = this.add.text(20, 50, '', {
+      this.potionText = this.add.text(20, 50, this.hasPotion ? 'Poción: F para usar' : '', {
+        font: 'bold 16px Arial',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3
+      }).setScrollFactor(0);
+
+      // Añadir texto para mostrar la puntuación
+      this.scoreText = this.add.text(20, 80, 'Puntuación: 0', {
         font: 'bold 16px Arial',
         fill: '#ffffff',
         stroke: '#000000',
@@ -677,6 +696,10 @@ export class Mundo1Scene extends Phaser.Scene {
     console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
+      // Detener completamente al jugador tras la ulti
+      this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
       this.ultimateActive = true;
       this.activatingUltimate = false;
       this.input.keyboard.enabled = true;
@@ -817,20 +840,45 @@ export class Mundo1Scene extends Phaser.Scene {
       this.player.anims.play('death', true);
       this.player.setVelocity(0, 0);
       this.input.keyboard.enabled = false;
+      // Restar 100 puntos por muerte
+      this.score = Math.max(0, this.score - 100);
+      this.scoreText.setText(`Puntuación: ${this.score}`);
       this.time.delayedCall(2000, () => {
-        this.scene.restart();
+        window.dispatchEvent(new CustomEvent('player-died'));
       });
+      this.deathCount++;
     } else if (amount > 0) {
       const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
       this.isAttacking = true;
       this.player.anims.play(animKey, true);
+      
+      // Forzar detención del jugador
       this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
+      
+      // Deshabilitar controles temporalmente
       this.input.keyboard.enabled = false;
+      
+      // Guardar el estado de la ultimate
+      const wasUltimateActive = this.ultimateActive;
+      
       this.player.once('animationcomplete-' + animKey, () => {
         if (!this.player.isDead) {
           this.isAttacking = false;
           this.input.keyboard.enabled = true;
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
+          
+          // Asegurar que la velocidad está en 0
+          this.player.setVelocity(0, 0);
+          this.player.body.setAcceleration(0, 0);
+          this.player.body.setDrag(0, 0);
+          
+          // Restaurar la animación correcta basada en el estado de la ultimate
+          if (wasUltimateActive) {
+            this.player.anims.play('idle_ult', true);
+          } else {
+            this.player.anims.play('idle', true);
+          }
         }
       });
     }
@@ -845,7 +893,7 @@ export class Mundo1Scene extends Phaser.Scene {
     } else if (healthPercent > 0.3) {
       this.playerHealthBar.fillColor = 0xffff00; // Amarillo
     } else {
-      this.playerHealthBar.fillColor = 0xff0000; // Rojo;
+      this.playerHealthBar.fillColor = 0xff0000; // Rojo
     }
   }
 
@@ -876,6 +924,32 @@ export class Mundo1Scene extends Phaser.Scene {
       }
     });
   }
+
+  // Añadir método para actualizar la puntuación
+  updateScore(points) {
+    this.score += points;
+    this.scoreText.setText(`Puntuación: ${this.score}`);
+    
+    // Efecto visual de puntos ganados
+    const scoreText = this.add.text(this.player.x, this.player.y - 30, `+${points}`, {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: scoreText,
+      y: this.player.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        scoreText.destroy();
+      }
+    });
+  }
 }
 
 
@@ -891,6 +965,9 @@ export class Potion extends Phaser.Physics.Arcade.Sprite {
     this.body.setGravityY(300);
     this.setScale(0.5);
     this.setDepth(10);
+
+    // Añadir colisión con el suelo
+    scene.physics.add.collider(this, scene.groundCollider);
 
     // Añadir colisión con el jugador
     scene.physics.add.overlap(scene.player, this, this.collect, null, this);
@@ -934,15 +1011,20 @@ export class Mundo2Scene extends Phaser.Scene {
     this.HEALTH_BAR_MARGIN_TOP = 20;
     this.HEALTH_BAR_MARGIN_LEFT = 40;
     this.hasPotion = false;
+    this.score = 0; // Añadir puntuación inicial
   }
 
-  init() {
+  init(data) {
     this.parentVue = this.game.config.parentVue;
     this.resourceManager = this.game.config.resourceManager;
     this.eventBus = this.game.config.eventBus;
     this.objectPools = this.game.config.objectPools;
     this.gameState = this.game.config.gameState;
     this.debugSystem = new DebugSystem(this);
+    this.hasPotion = data.hasPotion || false;
+    this.score = data.score || 0; // Recibir puntuación del mundo anterior
+    this.initialScore = this.score; // Guardar la puntuación inicial
+    this.deathCount = data.deathCount || 0;
   }
 
   preload() {
@@ -1060,9 +1142,26 @@ export class Mundo2Scene extends Phaser.Scene {
 
       // --- AÑADIR MUSHROOM AL SEGUNDO MUNDO ---
       this.mushrooms = [];
-      const mushroom = new Mushroom(this, 800, 555);
-      this.mushrooms.push(mushroom);
-      this.physics.add.collider(mushroom, this.groundCollider);
+      const mushroomPositions = [
+        { x: 800, y: 555 },   // Primer grupo
+        { x: 830, y: 555 },
+        { x: 1200, y: 555 },  // Segundo grupo
+        { x: 1230, y: 555 },
+        { x: 1600, y: 555 },  // Tercer grupo
+        { x: 1630, y: 555 },
+        { x: 2000, y: 555 },  // Cuarto grupo
+        { x: 2030, y: 555 },
+        { x: 2400, y: 555 },  // Quinto grupo
+        { x: 2430, y: 555 },
+        { x: 2800, y: 555 },  // Sexto grupo
+        { x: 2830, y: 555 }
+      ];
+
+      mushroomPositions.forEach(pos => {
+        const mushroom = new Mushroom(this, pos.x, pos.y);
+        this.mushrooms.push(mushroom);
+        this.physics.add.collider(mushroom, this.groundCollider);
+      });
       // ----------------------------------------
 
       this.cursors = this.input.keyboard.addKeys({
@@ -1145,7 +1244,7 @@ export class Mundo2Scene extends Phaser.Scene {
       });
 
       // Añadir texto para mostrar si tiene poción
-      this.potionText = this.add.text(20, 50, '', {
+      this.potionText = this.add.text(20, 50, this.hasPotion ? 'Poción: F para usar' : '', {
         font: 'bold 16px Arial',
         fill: '#ffffff',
         stroke: '#000000',
@@ -1215,6 +1314,42 @@ export class Mundo2Scene extends Phaser.Scene {
           this.activateUltimate();
         }
       });
+
+      // Añadir texto para mostrar la puntuación
+      this.scoreText = this.add.text(20, 80, `Puntuación: ${this.score}`, {
+        font: 'bold 16px Arial',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3
+      }).setScrollFactor(0);
+
+      // Añadir el portal final en el extremo derecho del mapa
+      this.finalPortal = this.physics.add.staticImage(3000, 605 - 32, 'portal');
+      this.finalPortal.setOrigin(0.5, 1);
+      this.finalPortal.setScale(2);
+      this.finalPortal.setDepth(5);
+      this.finalPortal.body.setSize(12, 12);
+      this.finalPortal.body.setOffset(
+        (this.finalPortal.width * this.finalPortal.scaleX - 12) / 2,
+        (this.finalPortal.height * this.finalPortal.scaleY - 12) / 2 - 20
+      );
+
+      // Añadir colisión con el portal final
+      this.physics.add.overlap(this.player, this.finalPortal, () => {
+        console.debug('El jugador ha tocado el portal final');
+        this.physics.world.disable(this.player);
+        this.physics.world.disable(this.finalPortal);
+        this.cameras.main.fade(500, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          // Guardar la puntuación y el conteo de muertes en localStorage
+          localStorage.setItem('finalScore', this.score);
+          localStorage.setItem('deathCount', this.deathCount);
+          // Emitir evento global con score y deathCount
+          window.dispatchEvent(new CustomEvent('game-finished', { 
+            detail: { score: this.score, deathCount: this.deathCount }
+          }));
+        });
+      }, null, this);
 
     } catch (error) {
       console.error('Error in create:', error);
@@ -1334,6 +1469,10 @@ export class Mundo2Scene extends Phaser.Scene {
     console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
+      // Detener completamente al jugador tras la ulti
+      this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
       this.ultimateActive = true;
       this.activatingUltimate = false;
       this.input.keyboard.enabled = true;
@@ -1448,20 +1587,45 @@ export class Mundo2Scene extends Phaser.Scene {
       this.player.anims.play('death', true);
       this.player.setVelocity(0, 0);
       this.input.keyboard.enabled = false;
+      // Restar 100 puntos por muerte
+      this.score = Math.max(0, this.score - 100);
+      this.scoreText.setText(`Puntuación: ${this.score}`);
       this.time.delayedCall(2000, () => {
-        this.scene.restart();
+        window.dispatchEvent(new CustomEvent('player-died'));
       });
+      this.deathCount++;
     } else if (amount > 0) {
       const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
       this.isAttacking = true;
       this.player.anims.play(animKey, true);
+      
+      // Forzar detención del jugador
       this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
+      
+      // Deshabilitar controles temporalmente
       this.input.keyboard.enabled = false;
+      
+      // Guardar el estado de la ultimate
+      const wasUltimateActive = this.ultimateActive;
+      
       this.player.once('animationcomplete-' + animKey, () => {
         if (!this.player.isDead) {
           this.isAttacking = false;
           this.input.keyboard.enabled = true;
-          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
+          
+          // Asegurar que la velocidad está en 0
+          this.player.setVelocity(0, 0);
+          this.player.body.setAcceleration(0, 0);
+          this.player.body.setDrag(0, 0);
+          
+          // Restaurar la animación correcta basada en el estado de la ultimate
+          if (wasUltimateActive) {
+            this.player.anims.play('idle_ult', true);
+          } else {
+            this.player.anims.play('idle', true);
+          }
         }
       });
     }
@@ -1504,6 +1668,32 @@ export class Mundo2Scene extends Phaser.Scene {
       ease: 'Power2',
       onComplete: () => {
         useText.destroy();
+      }
+    });
+  }
+
+  // Añadir método para actualizar la puntuación
+  updateScore(points) {
+    this.score += points;
+    this.scoreText.setText(`Puntuación: ${this.score}`);
+    
+    // Efecto visual de puntos ganados
+    const scoreText = this.add.text(this.player.x, this.player.y - 30, `+${points}`, {
+      font: 'bold 20px Arial',
+      fill: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    // Animación del texto
+    this.tweens.add({
+      targets: scoreText,
+      y: this.player.y - 60,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        scoreText.destroy();
       }
     });
   }

@@ -17,7 +17,8 @@ export const useGameStore = defineStore('game', {
     },
     gameProgress: 0,
     lastSaveTime: null,
-    debugMode: false
+    debugMode: false,
+    totalDeaths: 0
   }),
 
   getters: {
@@ -35,6 +36,7 @@ export const useGameStore = defineStore('game', {
       this.lives = 3
       this.isGamePaused = false
       this.lastSaveTime = Date.now()
+      this.totalDeaths = 0
       this.persistGameState()
     },
 
@@ -66,6 +68,7 @@ export const useGameStore = defineStore('game', {
 
     loseLife() {
       this.lives--
+      this.totalDeaths++
       if (this.lives <= 0) {
         this.gameOver()
       }
@@ -83,7 +86,8 @@ export const useGameStore = defineStore('game', {
         lives: this.lives,
         highScores: this.highScores,
         settings: this.settings,
-        currentLevel: this.currentLevel
+        currentLevel: this.currentLevel,
+        totalDeaths: this.totalDeaths
       }
       localStorage.setItem('gameState', JSON.stringify(gameState))
       this.lastSaveTime = Date.now()
@@ -98,6 +102,7 @@ export const useGameStore = defineStore('game', {
         this.highScores = state.highScores
         this.settings = state.settings
         this.currentLevel = state.currentLevel
+        this.totalDeaths = state.totalDeaths || 0
       }
     },
 

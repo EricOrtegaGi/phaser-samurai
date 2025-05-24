@@ -1,6 +1,7 @@
 <template>
   <div class="game-container">
     <div ref="gameContainer"></div>
+    <MenuMuerte v-if="showDeathMenu" @checkpoint="onCheckpoint" />
   </div>
 </template>
 
@@ -12,9 +13,11 @@ import EventBus from '../utils/EventBus';
 import { ObjectPool } from '../utils/ObjectPool';
 import { GameState } from '../utils/GameState';
 import { DebugSystem } from '../utils/DebugSystem';
+import MenuMuerte from './MenuMuerte.vue';
 
 export default {
   name: 'Game',
+  components: { MenuMuerte },
   data() {
     return {
       game: null,
@@ -22,7 +25,8 @@ export default {
       eventBus: EventBus,
       objectPools: {},
       gameState: null,
-      debugSystem: null
+      debugSystem: null,
+      showDeathMenu: false
     };
   },
   mounted() {
@@ -54,6 +58,10 @@ export default {
         gameState: this.gameState
       });
       // DebugSystem se inicializa en la escena para tener acceso a game.add
+      // Listener para terminar el juego y navegar al menú final
+      window.addEventListener('game-finished', this.onGameFinished);
+      window.addEventListener('player-died', this.onPlayerDied);
+      window.addEventListener('checkpoint', this.onCheckpoint);
     } catch (error) {
       console.error('Game initialization error:', error);
     }
@@ -66,6 +74,34 @@ export default {
     this.resourceManager.clear();
     // Limpieza de pools si es necesario
     Object.values(this.objectPools).forEach(pool => pool.clear());
+    window.removeEventListener('game-finished', this.onGameFinished);
+    window.removeEventListener('player-died', this.onPlayerDied);
+    window.removeEventListener('checkpoint', this.onCheckpoint);
+  },
+  methods: {
+    onGameFinished(e) {
+      // Navegar al menú final
+      this.$router.push('/menu-final');
+    },
+    onPlayerDied() {
+      this.showDeathMenu = true;
+    },
+    onCheckpoint() {
+      this.showDeathMenu = false;
+      // Reiniciar la escena actual de Phaser
+      if (this.game && this.game.scene && this.game.scene.getScenes(true).length > 0) {
+        const currentScene = this.game.scene.getScenes(true)[0];
+        if (currentScene) {
+          // Pasar datos actuales al reiniciar la escena
+          const data = {
+            hasPotion: currentScene.hasPotion,
+            score: currentScene.score,
+            deathCount: currentScene.deathCount
+          };
+          currentScene.scene.restart(data);
+        }
+      }
+    }
   }
 };
 </script>

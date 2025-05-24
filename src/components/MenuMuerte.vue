@@ -3,9 +3,13 @@
     <div class="menu-content">
       <h1 class="death-title">Has Muerto</h1>
       <div class="death-message">El camino del samurái es difícil...</div>
+      <button class="retry-button" @click="emitCheckpoint">
+        <span class="button-text">Checkpoint</span>
+        <span class="button-description">Reaparecer en el mundo actual</span>
+      </button>
       <button class="retry-button" @click="reiniciarJuego">
-        <span class="button-text">Reintentar</span>
-        <span class="button-description">Volver al inicio</span>
+        <span class="button-text">Volver al inicio</span>
+        <span class="button-description">Volver al menú principal</span>
       </button>
     </div>
   </div>
@@ -17,6 +21,10 @@ export default {
   methods: {
     reiniciarJuego() {
       this.$router.push('/');
+    },
+    emitCheckpoint() {
+      this.$emit('checkpoint');
+      window.dispatchEvent(new CustomEvent('checkpoint'));
     }
   }
 };
@@ -24,12 +32,18 @@ export default {
 
 <style scoped>
 .menu-muerte {
-  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #2c0000 0%, #1a0000 100%);
-  color: white;
+  background: rgba(44, 0, 0, 0.85); /* Fondo rojo oscuro semitransparente */
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.5s ease-out;
 }
 
 .menu-content {
@@ -38,17 +52,26 @@ export default {
   background: rgba(0, 0, 0, 0.7);
   border-radius: 1rem;
   box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
-  animation: fadeIn 0.5s ease-out;
+  animation: fadeInContent 0.7s;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInContent {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -90,6 +113,7 @@ export default {
   transition: all 0.3s ease;
   overflow: hidden;
   min-width: 200px;
+  margin: 0 0.5rem;
 }
 
 .retry-button:hover {

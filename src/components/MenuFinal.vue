@@ -3,6 +3,21 @@
     <div class="menu-content">
       <h1 class="victory-title">¡Felicidades!</h1>
       <div class="victory-message">Has completado tu entrenamiento como samurái</div>
+      <div class="score-display">
+        <span class="score-label">Puntuación Base:</span>
+        <span class="score-value">{{ finalScore }}</span>
+      </div>
+      <div class="score-display">
+        <span class="score-label">Muertes:</span>
+        <span class="score-value">{{ deathCount }}</span>
+      </div>
+      <div class="score-display">
+        <span class="score-label">Puntuación Final:</span>
+        <span class="score-value">{{ finalScoreWithDeaths }} / {{ maxScore }}</span>
+      </div>
+      <div class="stars-display">
+        <span v-for="n in 3" :key="n" class="star" :class="{ filled: n <= stars }">★</span>
+      </div>
       <div class="confetti-container">
         <div v-for="n in 50" :key="n" class="confetti" :style="confettiStyle(n)"></div>
       </div>
@@ -17,8 +32,37 @@
 <script>
 export default {
   name: 'MenuFinal',
+  data() {
+    return {
+      finalScore: 0,
+      deathCount: 0,
+      finalScoreWithDeaths: 0,
+      stars: 1,
+      maxScore: 975
+    };
+  },
+  created() {
+    // Obtener la puntuación final y muertes del localStorage
+    this.finalScore = parseInt(localStorage.getItem('finalScore') || 0);
+    this.deathCount = parseInt(localStorage.getItem('deathCount') || 0);
+    this.finalScoreWithDeaths = this.finalScore - (this.deathCount * 100);
+    if (this.finalScoreWithDeaths < 0) this.finalScoreWithDeaths = 0;
+    // Calcular estrellas
+    if (this.finalScoreWithDeaths === 0 || this.finalScoreWithDeaths <= 50) {
+      this.stars = 0;
+    } else if (this.finalScoreWithDeaths >= this.maxScore) {
+      this.stars = 3;
+    } else if (this.finalScoreWithDeaths >= Math.floor(this.maxScore / 2)) {
+      this.stars = 2;
+    } else {
+      this.stars = 1;
+    }
+  },
   methods: {
     volverAlMenu() {
+      // Limpiar la puntuación y muertes del localStorage
+      localStorage.removeItem('finalScore');
+      localStorage.removeItem('deathCount');
       this.$router.push('/');
     },
     confettiStyle(n) {
@@ -45,7 +89,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #004400 0%, #001a00 100%);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2c3e50 100%);
   color: white;
   overflow: hidden;
 }
@@ -53,49 +97,56 @@ export default {
 .menu-content {
   text-align: center;
   padding: 2rem;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   border-radius: 1rem;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
-  animation: fadeIn 0.5s ease-out;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
   position: relative;
   z-index: 1;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.score-display {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 0.5rem;
+  border: 2px solid #3498db;
+}
+
+.score-label {
+  font-size: 1.2rem;
+  color: #3498db;
+  margin-right: 1rem;
+}
+
+.score-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #3498db;
+  text-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
 }
 
 .victory-title {
-  font-size: 3.5rem;
+  font-size: 3rem;
   margin-bottom: 1rem;
-  color: #44ff44;
+  color: #fff;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  animation: glow 2s infinite;
-}
-
-@keyframes glow {
-  0% {
-    text-shadow: 0 0 10px #44ff44;
-  }
-  50% {
-    text-shadow: 0 0 20px #44ff44, 0 0 30px #44ff44;
-  }
-  100% {
-    text-shadow: 0 0 10px #44ff44;
-  }
 }
 
 .victory-message {
   font-size: 1.2rem;
   margin-bottom: 2rem;
-  color: #99ff99;
+  color: #fff;
+}
+
+.stars-display {
+  margin: 1.5rem 0 0.5rem 0;
+  font-size: 2.5rem;
+  color: #bbb;
+}
+
+.star.filled {
+  color: #ffd700;
+  text-shadow: 0 0 10px #ffd700, 0 0 20px #ffd700;
 }
 
 .confetti-container {
@@ -128,7 +179,7 @@ export default {
   position: relative;
   padding: 1rem 2rem;
   font-size: 1.2rem;
-  background: linear-gradient(45deg, #004400, #44ff44);
+  background: linear-gradient(45deg, #2c3e50, #3498db);
   border: none;
   border-radius: 0.5rem;
   color: white;
@@ -140,8 +191,8 @@ export default {
 
 .menu-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 255, 0, 0.3);
-  background: linear-gradient(45deg, #44ff44, #004400);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(45deg, #3498db, #2c3e50);
 }
 
 .menu-button:active {
@@ -166,7 +217,7 @@ export default {
   }
 
   .victory-title {
-    font-size: 2.5rem;
+    font-size: 2rem;
   }
 
   .victory-message {
@@ -176,6 +227,10 @@ export default {
   .menu-button {
     padding: 0.8rem 1.5rem;
     font-size: 1rem;
+  }
+
+  .score-value {
+    font-size: 1.5rem;
   }
 }
 </style>

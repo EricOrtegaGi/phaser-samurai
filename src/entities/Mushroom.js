@@ -3,13 +3,13 @@ import { Enemy } from './Enemy';
 export class Mushroom extends Enemy {
   constructor(scene, x, y) {
     super(scene, x, y, 'mushroom_idle');
-    this.health = 250;
-    this.maxHealth = 250;
-    this.speed = 100;
-    this.attackDamage = 20;
-    this.attackRange = 60;
-    this.attackDelay = 400;
-    this.attackCooldownTime = 300;
+    this.health = 350;
+    this.maxHealth = 350;
+    this.speed = 150;
+    this.attackDamage = 100;
+    this.attackRange = 80;
+    this.attackDelay = 350;
+    this.attackCooldownTime = 550;
     this.optimalDistance = 60;
     this.takeHitCooldownTime = 500;
     this.isLastGroup = x >= 2500;
@@ -107,7 +107,8 @@ export class Mushroom extends Enemy {
       this.attackCooldown = true;
       this.setVelocityX(0);
       this.play('mushroom_attack', true);
-      this.scene.time.delayedCall(this.attackDelay, () => {
+      this.attackTimer = this.scene.time.delayedCall(this.attackDelay, () => {
+        if (this.isDead) return;
         const distance = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
         if (distance < this.attackRange) {
           this.scene.takePlayerDamage(this.attackDamage);
@@ -165,6 +166,11 @@ export class Mushroom extends Enemy {
     this.play('mushroom_death', true);
     this.healthBarBg.destroy();
     this.healthBar.destroy();
+    if (this.attackTimer) {
+      this.attackTimer.remove(false);
+      this.attackTimer = null;
+    }
+    this.scene.updateScore(50);
     this.once('animationcomplete', () => {
       this.destroy();
     });
