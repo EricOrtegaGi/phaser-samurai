@@ -87,17 +87,26 @@ export default {
     // Reproducir música del menú principal
     audioManager.playMusic('menuPrincipal');
     
-    // Mostrar notificación si el usuario no ha interactuado O si hay música pendiente
-    if (!audioManager.userHasInteracted || audioManager.pendingMusic) {
+    // Mostrar notificación si el usuario no ha interactuado O si hay música pendiente O si se viene desde otro menú
+    if (!audioManager.userHasInteracted || audioManager.pendingMusic || this.checkReturnFromDeath()) {
       this.showAudioNotification = true;
     } else {
       this.showAudioNotification = false;
     }
-  },methods: {
+  },  methods: {
     enableAudio() {
       this.showAudioNotification = false;
       // Forzar la reproducción de la música del menú principal
       audioManager.playMusic('menuPrincipal');
+    },
+      // Verificar si venimos de vuelta al menú principal desde la pantalla de muerte
+    checkReturnFromDeath() {
+      // Comprobar si existe el query parameter fromDeath
+      if (this.$route && this.$route.query) {
+        const fromDeath = this.$route.query.fromDeath;
+        return fromDeath === 'true';
+      }
+      return false;
     },
     irAMundo1() {
       // Detener música del menú antes de ir al juego

@@ -41,33 +41,69 @@ Samurai Game es un juego de plataformas de acción donde el jugador controla a u
 
 ```
 phaser-samurai/
+├── jsconfig.json            # Configuración de JavaScript para VS Code
+├── package.json             # Dependencias y scripts del proyecto
+├── README.md               # Documentación del proyecto
 ├── public/
-│   ├── assets/               # Recursos gráficos del juego
-│   │   ├── player/          # Sprites del jugador
-│   │   ├── enemies/         # Sprites de enemigos
-│   │   ├── Background/      # Fondos parallax
-│   │   ├── Props/           # Objetos y decoraciones
-│   │   └── Tileset/         # Texturas de terreno
-│   └── index.html
+│   ├── favicon.ico         # Icono del sitio web
+│   ├── index.html          # Punto de entrada HTML principal
+│   └── assets/             # Recursos gráficos y de audio del juego
+│       ├── Background/     # Imágenes de fondo parallax (1.png, 2.png, 3.png)
+│       ├── enemies/        # Sprites de enemigos
+│       │   ├── Goblin/     # Animaciones del Goblin (Attack, Death, Idle, Run, Take Hit)
+│       │   └── Mushroom/   # Animaciones del Hongo (Attack, Death, Idle, Run, Take Hit)
+│       ├── items/          # Objetos coleccionables
+│       │   └── potion.png  # Sprite de la poción
+│       ├── player/         # Sprites del jugador samurai
+│       │   ├── ATTACK 1-3.png    # Animaciones de ataques básicos
+│       │   ├── DEATH.png         # Animación de muerte
+│       │   ├── HURT.png          # Animación de daño recibido
+│       │   ├── IDLE.png          # Animación idle
+│       │   ├── JUMP_ATTACK.png   # Ataque aéreo
+│       │   ├── RUN.png           # Animación de correr
+│       │   └── ultimate/         # Sprites del modo ultimate con espada flamígera
+│       ├── Props/          # Objetos decorativos y funcionales
+│       │   ├── bush.png          # Arbustos
+│       │   ├── Flag.png          # Banderas
+│       │   ├── portal.png        # Portal de fin de nivel
+│       │   └── [otros]           # Rocas, hierba, luces, etc.
+│       ├── sounds/         # Archivos de audio
+│       │   ├── 111-333.mp3       # Música de los mundos
+│       │   ├── menu principal.mp3 # Música del menú principal
+│       │   └── menu1-3.mp3       # Música de los menús de muerte/final
+│       ├── Tileset/        # Texturas para el terreno
+│       │   ├── ground.png        # Textura del suelo
+│       │   └── Tileset.png       # Atlas de texturas
+│       └── Trees/          # Sprites de árboles decorativos
 ├── src/
-│   ├── components/          # Componentes Vue
-│   │   ├── Game.vue         # Componente principal del juego
-│   │   ├── MenuPrincipal.vue # Menú principal con controles
-│   │   ├── MenuMuerte.vue   # Pantalla de muerte
-│   │   └── MenuFinal.vue    # Pantalla de finalización
-│   ├── scenes/              # Escenas de Phaser
-│   │   └── GameScenes.js    # Mundo1Scene y Mundo2Scene
-│   ├── entities/            # Clases de entidades
-│   │   ├── Enemy.js         # Clase base de enemigos
-│   │   ├── Goblin.js        # Enemigo Goblin (Mundo 1)
-│   │   └── Mushroom.js      # Enemigo Hongo (Mundo 2)
-│   ├── utils/               # Utilidades y sistemas
-│   │   ├── PlayerUtils.js   # Funciones de combate y utilidades
-│   │   ├── DebugSystem.js   # Sistema de depuración
-│   │   ├── GameState.js     # Gestión del estado del juego
-│   │   └── ResourceManager.js # Gestión de recursos
-│   └── router/              # Configuración de rutas Vue
-└── package.json
+│   ├── App.vue             # Componente raíz de Vue
+│   ├── main.js             # Punto de entrada de la aplicación Vue
+│   ├── assets/
+│   │   └── logo.png        # Logo de Vue (por defecto)
+│   ├── components/         # Componentes de la interfaz de usuario
+│   │   ├── Game.vue        # Componente principal que contiene el canvas de Phaser
+│   │   ├── LoadingOverlay.vue    # Pantalla de carga
+│   │   ├── MenuPrincipal.vue     # Menú principal con controles y audio
+│   │   ├── MenuMuerte.vue        # Pantalla de game over con reinicio
+│   │   └── MenuFinal.vue         # Pantalla de victoria al completar el juego
+│   ├── scenes/             # Escenas del motor Phaser
+│   │   └── GameScenes.js   # Mundo1Scene y Mundo2Scene con lógica de juego
+│   ├── entities/           # Clases de personajes y enemigos
+│   │   ├── Enemy.js        # Clase base con IA, vida, ataques y animaciones
+│   │   ├── Goblin.js       # Enemigo del Mundo 1 con sistema de drops
+│   │   └── Mushroom.js     # Enemigo del Mundo 2 con ataques a distancia
+│   ├── utils/              # Sistemas y utilidades del juego
+│   │   ├── AudioManager.js       # Gestión de audio con soporte para autoplay
+│   │   ├── DebugSystem.js        # Herramientas de depuración en tiempo real
+│   │   ├── EventBus.js           # Sistema de eventos entre componentes
+│   │   ├── GameState.js          # Estado global del juego y puntuaciones
+│   │   ├── ObjectPool.js         # Pool de objetos para optimización
+│   │   ├── PlayerUtils.js        # Sistema de combate y habilidades del jugador
+│   │   └── ResourceManager.js    # Gestión de carga de recursos
+│   ├── router/             # Configuración de rutas Vue Router
+│   │   └── index.js        # Definición de rutas entre menús y juego
+│   └── store/              # Estado global con Vuex
+│       └── game.js         # Store del juego con persistencia
 ```
 
 ## 🔧 Funciones Más Importantes

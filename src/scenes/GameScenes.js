@@ -30,6 +30,8 @@ export class Mundo1Scene extends Phaser.Scene {
     this.score = data && data.score !== undefined ? data.score : 0;
     this.initialScore = this.score;
     this.deathCount = data && data.deathCount !== undefined ? data.deathCount : 0;
+    this.lastGroupPotionDropped = false; // Flag para evitar drops duplicados
+    this.isDyingRestart = data && data.isDyingRestart !== undefined ? data.isDyingRestart : false;
   }
 
   preload() {
@@ -156,9 +158,11 @@ export class Mundo1Scene extends Phaser.Scene {
     try {
       this.debugSystem.init();
       
-      // Inicializar audioManager y reproducir música de juego
+      // Inicializar audioManager y reproducir música de juego solo si no es un reinicio por muerte
       audioManager.init(this);
-      audioManager.playMusic('menuGame');
+      if (!this.isDyingRestart) {
+        audioManager.playMusic('menuGame');
+      }
       
       this.physics.world.setBounds(0, 0, 3200, 600);
       this.player = this.physics.add.sprite(300, 300, 'idle');
@@ -755,6 +759,13 @@ export class Mundo1Scene extends Phaser.Scene {
       this.isAttacking = true;
       this.player.anims.play(animKey, true);
       
+      // Si se estaba activando la ultimate, cancelarla
+      if (this.activatingUltimate) {
+        this.activatingUltimate = false;
+        // Remover el listener de animationcomplete-shout para evitar conflictos
+        this.player.off('animationcomplete-shout');
+      }
+      
       // Forzar detención del jugador
       this.player.setVelocity(0, 0);
       this.player.body.setAcceleration(0, 0);
@@ -858,6 +869,31 @@ export class Mundo1Scene extends Phaser.Scene {
       }
     });
   }
+
+  // Manejar muerte de goblins del último grupo
+  onLastGroupGoblinDeath(x, y) {
+    // Usar un flag para asegurar que solo se dropee una poción por escena
+    if (this.lastGroupPotionDropped) {
+      return;
+    }
+
+    // Verificar si quedan goblins vivos en el último grupo
+    const lastGroupGoblins = this.goblins.filter(goblin => 
+      goblin && !goblin.isDead && goblin.x >= 2500
+    );
+    
+    console.log('Goblins restantes en el último grupo:', lastGroupGoblins.length);
+    
+    // Si no quedan goblins vivos en el último grupo, dropear poción
+    if (lastGroupGoblins.length === 0) {
+      console.log('Dropeando poción en posición:', x, y);
+      this.lastGroupPotionDropped = true; // Marcar como dropeada
+      
+      const potion = new Potion(this, x, y);
+      this.physics.add.existing(potion);
+      this.physics.add.overlap(this.player, potion, potion.collect, null, potion);
+    }
+  }
 }
 
 export class Potion extends Phaser.Physics.Arcade.Sprite {
@@ -933,6 +969,7 @@ export class Mundo2Scene extends Phaser.Scene {
     this.score = data.score || 0; // Recibir puntuación del mundo anterior
     this.initialScore = this.score; // Guardar la puntuación inicial
     this.deathCount = data.deathCount || 0;
+    this.isDyingRestart = data && data.isDyingRestart !== undefined ? data.isDyingRestart : false;
   }
 
   preload() {
@@ -1015,9 +1052,11 @@ export class Mundo2Scene extends Phaser.Scene {
     try {
       this.debugSystem.init();
       
-      // Inicializar audioManager y reproducir música de juego
+      // Inicializar audioManager y reproducir música de juego solo si no es un reinicio por muerte
       audioManager.init(this);
-      audioManager.playMusic('menuGame');
+      if (!this.isDyingRestart) {
+        audioManager.playMusic('menuGame');
+      }
       
       this.physics.world.setBounds(0, 0, 3200, 600);
       this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -1296,11 +1335,12 @@ export class Mundo2Scene extends Phaser.Scene {
   handlePlayerDeath() {
     // Restaurar la puntuación al valor inicial al cruzar el portal
     this.score = this.initialScore;
-    // Reiniciar la escena y pasar los datos necesarios
+    // Reiniciar la escena y pasar los datos necesarios, incluyendo flag de muerte
     this.scene.restart({
       hasPotion: this.hasPotion,
       score: this.score,
-      deathCount: this.deathCount
+      deathCount: this.deathCount,
+      isDyingRestart: true // Flag para evitar reproducir música de juego al reiniciar por muerte
     });
   }
 
@@ -1555,6 +1595,13 @@ export class Mundo2Scene extends Phaser.Scene {
       const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
       this.isAttacking = true;
       this.player.anims.play(animKey, true);
+      
+      // Si se estaba activando la ultimate, cancelarla
+      if (this.activatingUltimate) {
+        this.activatingUltimate = false;
+        // Remover el listener de animationcomplete-shout para evitar conflictos
+        this.player.off('animationcomplete-shout');
+      }
       
       // Forzar detención del jugador
       this.player.setVelocity(0, 0);

@@ -1,8 +1,8 @@
 // AudioManager.js - Gestor centralizado de audio para el juego
 
-class AudioManager {
-  constructor() {
+class AudioManager {  constructor() {
     this.currentMusic = null;
+    this.currentMusicKey = null; // Para trackear qué música está sonando
     this.musicVolume = 0.3;
     this.sfxVolume = 0.5;
     this.isMuted = false;
@@ -55,15 +55,19 @@ class AudioManager {
       this.nativeAudio.pause();
       this.nativeAudio = null;
     }
-  }
-  // Reproducir música con transición suave
+  }  // Reproducir música con transición suave
   playMusic(audioKey, loop = true, volume = null) {
+    // Si el audio key es el mismo que ya está sonando, no hacer nada para evitar reiniciar la misma música
+    if (this.currentMusicKey === audioKey && this.currentMusic) {
+      return;
+    }
+    
     // Si el usuario no ha interactuado aún, guardar la música para reproducir después
     if (!this.userHasInteracted) {
       this.pendingMusic = { audioKey, loop, volume };
       console.log(`Música ${audioKey} programada para reproducir después de la interacción del usuario`);
       return;
-    }    // Detener música actual primero
+    }// Detener música actual primero
     this.stopAllMusic();
     
     // Intentar reproducir con Phaser si tenemos una escena
@@ -86,7 +90,6 @@ class AudioManager {
     // Fallback: usar audio nativo del navegador
     this.playNativeAudio(audioKey, loop, volume);
   }
-
   // Reproducir audio usando APIs nativas del navegador
   playNativeAudio(audioKey, loop = true, volume = null) {
     // Mapear las claves de audio a rutas de archivos
@@ -99,6 +102,9 @@ class AudioManager {
       'attackSpecial': '/assets/sounds/222.mp3',
       'attackPowerful': '/assets/sounds/333.mp3'
     };
+    
+    // Guardar la clave de audio para referencia
+    this.currentMusicKey = audioKey;
 
     const audioPath = audioFiles[audioKey];
     if (!audioPath) {

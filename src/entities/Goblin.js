@@ -170,22 +170,9 @@ export class Goblin extends Enemy {
     // Añadir puntos al matar al goblin
     this.scene.updateScore(25);
     
-    // Verificar si es el último goblin del último grupo
+    // Notificar a la escena que un goblin del último grupo ha muerto
     if (this.isLastGroup) {
-      console.log('Goblin del último grupo eliminado');
-      const lastGroupGoblins = this.scene.goblins.filter(goblin => 
-        goblin && !goblin.isDead && goblin.x >= 2500 && goblin !== this
-      );
-      
-      console.log('Goblins restantes en el último grupo:', lastGroupGoblins.length);
-      
-      // Si no quedan goblins vivos en el último grupo, dropear poción
-      if (lastGroupGoblins.length === 0) {
-        console.log('Dropeando poción');
-        const potion = new Potion(this.scene, this.x, this.y);
-        this.scene.physics.add.existing(potion);
-        this.scene.physics.add.overlap(this.scene.player, potion, potion.collect, null, potion);
-      }
+      this.scene.onLastGroupGoblinDeath(this.x, this.y);
     }
     
     this.once('animationcomplete', () => {
