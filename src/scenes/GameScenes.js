@@ -591,27 +591,13 @@ export class Mundo1Scene extends Phaser.Scene {
     console.log('Iniciando activación de ultimate');
     console.log('Animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     console.log('Estado isAttacking:', this.isAttacking);
-
-    // Stop any current animation
     this.player.anims.stop();
-
-    // Reset all action states
     this.isAttacking = false;
     this.activatingUltimate = true;
-    this.attackCooldown = false;
-    this.attack2Cooldown = false;
-    this.attack3Cooldown = false;
-    this.jumpAttackCooldown = false;
-
-    // Temporarily disable input
     this.input.keyboard.enabled = false;
-
-    // Reset movement
     this.player.setVelocity(0, 0);
-    this.player.setAcceleration(0, 0);
-    this.player.setDrag(0, 0);
-
-    // Setup movement key reset function
+    this.player.anims.play('shout', true);
+    // Guardar el estado de las teclas para evitar movimiento tras la ulti
     this._resetMovementKeys = () => {
       if (this.cursors) {
         this.cursors.left.isDown = false;
@@ -620,28 +606,19 @@ export class Mundo1Scene extends Phaser.Scene {
       }
     };
     this._resetMovementKeys();
-
-    // Start ultimate animation
-    this.player.anims.play('shout', true);
-
-    // Handle ultimate activation after animation
+    console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
-      
-      // Set ultimate active state
+      this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
       this.ultimateActive = true;
       this.activatingUltimate = false;
       this.input.keyboard.enabled = true;
       this.ultimateTimeLeft = this.ultimateDuration;
       this.ultimateCharge = 100;
-
-      // Start idle ultimate animation
       this.player.anims.play('idle_ult', true);
-      
-      // Reset movement for clean state
       this._resetMovementKeys();
-      
-      // Start ultimate timer
       this.ultimateTimerEvent = this.time.addEvent({
         delay: 100,
         repeat: this.ultimateDuration / 100 - 1,
@@ -653,47 +630,23 @@ export class Mundo1Scene extends Phaser.Scene {
           }
         }
       });
-    });
+    }, this);
   }
 
   deactivateUltimate() {
     this.ultimateActive = false;
     this.ultimateCharge = 0;
-    this.isAttacking = false;
-    this.activatingUltimate = false;
     this.player.anims.play('idle', true);
-
-    // Clear any existing ultimate timer
-    if (this.ultimateTimerEvent) {
-      this.ultimateTimerEvent.remove();
-      this.ultimateTimerEvent = null;
-    }
-
-    // Reset input state
+    if (this.ultimateTimerEvent) this.ultimateTimerEvent.remove();
     this.input.keyboard.enabled = true;
-       if (this._resetMovementKeys) {
-      this._resetMovementKeys();
-    }
-
-    // Force reset all movement physics
+    // Resetear teclas de movimiento para evitar movimiento fantasma
+    if (this._resetMovementKeys) this._resetMovementKeys();
     this.player.setVelocity(0, 0);
     this.player.body.setAcceleration(0, 0);
     this.player.body.setDrag(0, 0);
-    
-    // Ensure attack cooldowns are properly cleared
-    this.attackCooldown = false;
-    this.attack2Cooldown = false;
-    this.attack3Cooldown = false;
-    this.jumpAttackCooldown = false;
-
-    // Re-enable input on next tick to ensure clean state
+    // Permitir movimiento instantáneo tras la ulti
     setTimeout(() => {
       this.input.keyboard.enabled = true;
-      if (this.cursors) {
-        this.cursors.left.isDown = false;
-        this.cursors.right.isDown = false;
-        this.cursors.jump.isDown = false;
-      }
     }, 0);
   }
 
@@ -752,53 +705,47 @@ export class Mundo1Scene extends Phaser.Scene {
       this.potionText.setText(this.hasPotion ? 'Poción: F para usar' : '');
 
       if (!this.isAttacking && !this.activatingUltimate) {
-        // Reiniciar velocidad si no se presionan teclas de movimiento
-        if (!this.cursors.left.isDown && !this.cursors.right.isDown) {
-          this.player.body.setVelocityX(0);
-          if (this.player.body.touching.down) {
-            const animKey = this.ultimateActive ? 'idle_ult' : 'idle';
-            this.player.anims.play(animKey, true);
-          }
-        }
-
-        // Manejar movimiento hacia la izquierda
         if (this.cursors.left.isDown) {
           this.player.body.setVelocityX(-240);
           this.player.setFlipX(true);
           if (this.player.body.touching.down) {
             this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
           }
-        } 
-        // Manejar movimiento hacia la derecha
-        else if (this.cursors.right.isDown) {
+        } else if (this.cursors.right.isDown) {
           this.player.body.setVelocityX(240);
           this.player.setFlipX(false);
-          if (this.player.body.touching.down) {
+          if ( this.player.body.touching.down) {
             this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
           }
-        }
-
-        // Manejar salto
-        if (this.cursors.jump.isDown && this.player.body.touching.down) {
-          this.player.body.setVelocityY(-330);
-        }
-
-        // Actualizar animación de estado en el aire
-        if (!this.player.body.touching.down && !this.isAttacking && !this.activatingUltimate) {
-          if (this.player.anims.currentAnim && this.player.anims.currentAnim.key === 'idle') {
-            this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
+        } else {
+          this.player.body.setVelocityX(0);
+          if (this.player.body.touching.down) {
+            const animKey = this.ultimateActive ? 'idle_ult' : 'idle';
+            console.debug('Jugador quieto, reproduciendo animación:', animKey);
+            this.player.anims.play(animKey, true);
           }
         }
       }
-
-      // Actualizar barra de ultimate y texto del temporizador
+      if (this.cursors.jump.isDown && this.player.body.touching.down) {
+        this.player.body.setVelocityY(-330);
+      }
+      if (!this.player.body.touching.down && !this.isAttacking && !this.activatingUltimate) {
+        if (this.player.anims.currentAnim.key === 'idle') {
+          this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
+        }
+      }
       this.ultimateBar.width = 2 * this.ultimateCharge;
       this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
 
-      // Actualizar mushrooms
-      this.mushrooms.forEach(mushroom => {
-        if (mushroom.update) mushroom.update();
+      // Actualizar goblins
+      this.goblins.forEach(goblin => {
+        if (goblin && !goblin.isDead) {
+          goblin.update(this.player);
+        }
       });
+
+      // Limpiar goblins muertos
+      this.goblins = this.goblins.filter(goblin => goblin && !goblin.isDead);
     } catch (error) {
       console.error('Error in game update:', error);
     }
@@ -1524,27 +1471,13 @@ export class Mundo2Scene extends Phaser.Scene {
     console.log('Iniciando activación de ultimate');
     console.log('Animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     console.log('Estado isAttacking:', this.isAttacking);
-
-    // Stop any current animation
     this.player.anims.stop();
-
-    // Reset all action states
     this.isAttacking = false;
     this.activatingUltimate = true;
-    this.attackCooldown = false;
-    this.attack2Cooldown = false;
-    this.attack3Cooldown = false;
-    this.jumpAttackCooldown = false;
-
-    // Temporarily disable input
     this.input.keyboard.enabled = false;
-
-    // Reset movement
     this.player.setVelocity(0, 0);
-    this.player.setAcceleration(0, 0);
-    this.player.setDrag(0, 0);
-
-    // Setup movement key reset function
+    this.player.anims.play('shout', true);
+    // Guardar el estado de las teclas para evitar movimiento tras la ulti
     this._resetMovementKeys = () => {
       if (this.cursors) {
         this.cursors.left.isDown = false;
@@ -1553,28 +1486,19 @@ export class Mundo2Scene extends Phaser.Scene {
       }
     };
     this._resetMovementKeys();
-
-    // Start ultimate animation
-    this.player.anims.play('shout', true);
-
-    // Handle ultimate activation after animation
+    console.log('Intentando reproducir animación shout, animación actual:', this.player.anims.currentAnim ? this.player.anims.currentAnim.key : 'ninguna');
     this.player.once('animationcomplete-shout', () => {
       console.log('Animación shout completada');
-      
-      // Set ultimate active state
+      this.player.setVelocity(0, 0);
+      this.player.body.setAcceleration(0, 0);
+      this.player.body.setDrag(1000, 0);
       this.ultimateActive = true;
       this.activatingUltimate = false;
       this.input.keyboard.enabled = true;
       this.ultimateTimeLeft = this.ultimateDuration;
       this.ultimateCharge = 100;
-
-      // Start idle ultimate animation
       this.player.anims.play('idle_ult', true);
-      
-      // Reset movement for clean state
       this._resetMovementKeys();
-      
-      // Start ultimate timer
       this.ultimateTimerEvent = this.time.addEvent({
         delay: 100,
         repeat: this.ultimateDuration / 100 - 1,
@@ -1586,132 +1510,100 @@ export class Mundo2Scene extends Phaser.Scene {
           }
         }
       });
-    });
+    }, this);
   }
 
   deactivateUltimate() {
     this.ultimateActive = false;
     this.ultimateCharge = 0;
-    this.isAttacking = false;
-    this.activatingUltimate = false;
     this.player.anims.play('idle', true);
-
-    // Clear any existing ultimate timer
-    if (this.ultimateTimerEvent) {
-      this.ultimateTimerEvent.remove();
-      this.ultimateTimerEvent = null;
-    }
-
-    // Reset input state
+    if (this.ultimateTimerEvent) this.ultimateTimerEvent.remove();
     this.input.keyboard.enabled = true;
-       if (this._resetMovementKeys) {
-      this._resetMovementKeys();
-    }
-
-    // Force reset all movement physics
+    // Resetear teclas de movimiento para evitar movimiento fantasma
+    if (this._resetMovementKeys) this._resetMovementKeys();
     this.player.setVelocity(0, 0);
     this.player.body.setAcceleration(0, 0);
     this.player.body.setDrag(0, 0);
-    
-    // Ensure attack cooldowns are properly cleared
-    this.attackCooldown = false;
-    this.attack2Cooldown = false;
-    this.attack3Cooldown = false;
-    this.jumpAttackCooldown = false;
-
-    // Re-enable input on next tick to ensure clean state
+    // Permitir movimiento instantáneo tras la ulti
     setTimeout(() => {
       this.input.keyboard.enabled = true;
-      if (this.cursors) {
-        this.cursors.left.isDown = false;
-        this.cursors.right.isDown = false;
-        this.cursors.jump.isDown = false;
-      }
     }, 0);
   }
 
-  createGoblins() {
-    // Crear goblins en diferentes posiciones a lo largo del mundo
-    const goblinPositions = [
-      { x: 500, y: 555 },    // Primer grupo
-      { x: 530, y: 555 },
-      { x: 560, y: 555 },
-      { x: 1000, y: 555 },   // Segundo grupo
-      { x: 1030, y: 555 },
-      { x: 1060, y: 555 },
-      { x: 1500, y: 555 },   // Tercer grupo
-      { x: 1530, y: 555 },
-      { x: 1560, y: 555 },
-      { x: 2000, y: 555 },   // Cuarto grupo
-      { x: 2030, y: 555 },
-      { x: 2060, y: 555 },
-      { x: 2500, y: 555 },   // Quinto grupo
-      { x: 2530, y: 555 },
-      { x: 2560, y: 555 }
-    ];
-
-    goblinPositions.forEach(pos => {
-      const goblin = new Goblin(this, pos.x, pos.y);
-      this.goblins.push(goblin);
-      this.physics.add.collider(goblin, this.groundCollider);
-    });
-  }
-
   update() {
-    if (this.player.isDead) return;
-
-    // Update UI elements
-    this.potionText.setText(this.hasPotion ? 'Poción: F para usar' : '');
-
-    // Handle movement only when not in special states
-    if (!this.isAttacking && !this.activatingUltimate) {
-      // Reset velocity if no movement keys are pressed
-      if (!this.cursors.left.isDown && !this.cursors.right.isDown) {
-        this.player.body.setVelocityX(0);
-        if (this.player.body.touching.down) {
-          const animKey = this.ultimateActive ? 'idle_ult' : 'idle';
-          this.player.anims.play(animKey, true);
-        }
+    try {
+      this.debugSystem.update();
+      
+      // Actualizar fondos
+      if (this.player) {
+        const cam = this.cameras.main;
+        const fondoWidth = 800;
+        this.bgLayers.forEach(layer => {
+          this.bgImages[layer.key].forEach((img, idx) => {
+            img.x = (idx * fondoWidth + fondoWidth / 2) - (cam.scrollX * (1 - layer.speed));
+            if (img.x + fondoWidth / 2 < cam.scrollX) {
+              const maxIdx = Math.max(...this.bgImages[layer.key].map(i => i.x));
+              img.x = maxIdx + fondoWidth;
+            }
+          });
+        });
       }
 
-      // Handle left movement
-      if (this.cursors.left.isDown) {
-        this.player.body.setVelocityX(-240);
-        this.player.setFlipX(true);
-        if (this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
-        }
-      } 
-      // Handle right movement
-      else if (this.cursors.right.isDown) {
-        this.player.body.setVelocityX(240);
-        this.player.setFlipX(false);
-        if (this.player.body.touching.down) {
-          this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
-        }
+      // Comprobar si se presiona la tecla F para usar la poción
+      if (this.cursors.usePotion.isDown && this.hasPotion) {
+        this.usePotion();
       }
 
-      // Handle jump
+      // Actualizar texto de la poción
+      this.potionText.setText(this.hasPotion ? 'Poción: F para usar' : '');
+
+      if (!this.isAttacking && !this.activatingUltimate) {
+        if (this.cursors.left.isDown) {
+          this.player.body.setVelocityX(-240);
+          this.player.setFlipX(true);
+          if (this.player.body.touching.down) {
+            this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
+          }
+        } else if (this.cursors.right.isDown) {
+          this.player.body.setVelocityX(240);
+          this.player.setFlipX(false);
+          if ( this.player.body.touching.down) {
+            this.player.anims.play(this.ultimateActive ? 'run_ult' : 'run', true);
+          }
+        } else {
+          this.player.body.setVelocityX(0);
+          if (this.player.body.touching.down) {
+            const animKey = this.ultimateActive ? 'idle_ult' : 'idle';
+            console.debug('Jugador quieto, reproduciendo animación:', animKey);
+            this.player.anims.play(animKey, true);
+          }
+        }
+      }
       if (this.cursors.jump.isDown && this.player.body.touching.down) {
         this.player.body.setVelocityY(-330);
       }
-
-      // Update air state animation
       if (!this.player.body.touching.down && !this.isAttacking && !this.activatingUltimate) {
-        if (this.player.anims.currentAnim && this.player.anims.currentAnim.key === 'idle') {
+        if (this.player.anims.currentAnim.key === 'idle') {
           this.player.anims.play(this.ultimateActive ? 'idle_ult' : 'idle', true);
         }
       }
+      this.ultimateBar.width = 2 * this.ultimateCharge;
+      this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
+
+      // Actualizar mushrooms
+      if (this.mushrooms) {
+          this.mushrooms.forEach(mushroom => {
+            if (mushroom && !mushroom.isDead) {
+              mushroom.update(this.player);
+            }
+          });
+        // Limpiar champiñones muertos
+          this.mushrooms = this.mushrooms.filter(mushroom => mushroom && !mushroom.isDead);
+      }
+
+    } catch (error) {
+      console.error('Error in game update:', error);
     }
-
-    // Update ultimate bar and timer text
-    this.ultimateBar.width = 2 * this.ultimateCharge;
-    this.ultimateText.setText(this.ultimateActive ? `${Math.ceil(this.ultimateTimeLeft / 1000)}s` : '');
-
-    // Update mushrooms
-    this.mushrooms.forEach(mushroom => {
-      if (mushroom.update) mushroom.update();
-    });
   }
 
   takePlayerDamage(amount) {
@@ -1725,9 +1617,9 @@ export class Mundo2Scene extends Phaser.Scene {
       this.player.anims.play('death', true);
       this.player.setVelocity(0, 0);
       this.input.keyboard.enabled = false;
-      // Resetear puntuación a 0 por muerte
-      this.score = 0;
-      this.scoreText.setText(`Puntuación: ${this.score}`);
+      // Restar 100 puntos por muerte
+      //this.score = Math.max(0, this.score - 100);
+      //this.scoreText.setText(`Puntuación: ${this.score}`);
       // Detener música de juego antes de mostrar el menú de muerte
       audioManager.stopAllMusic();
       this.time.delayedCall(2000, () => {
