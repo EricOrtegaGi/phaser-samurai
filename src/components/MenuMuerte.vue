@@ -1,5 +1,13 @@
 <template>
   <div class="menu-muerte">
+    <!-- Notificación de audio -->
+    <div v-if="showAudioNotification" class="audio-notification" @click="enableAudio">
+      <div class="audio-notification-content">
+        <span class="audio-icon">🔊</span>
+        <span>Haz clic para habilitar el audio</span>
+      </div>
+    </div>
+    
     <div class="menu-content">
       <h1 class="death-title">Has Muerto</h1>
       <div class="death-message">El camino del samurái es difícil...</div>
@@ -16,13 +24,38 @@
 </template>
 
 <script>
+import { audioManager } from '../utils/AudioManager';
+
 export default {
   name: 'MenuMuerte',
-  methods: {
+  data() {
+    return {
+      showAudioNotification: true
+    };
+  },  mounted() {
+    // Reproducir música de muerte
+    audioManager.playMusic('menuDeath');
+    
+    // Mostrar notificación si el usuario no ha interactuado O si hay música pendiente
+    if (!audioManager.userHasInteracted || audioManager.pendingMusic) {
+      this.showAudioNotification = true;
+    } else {
+      this.showAudioNotification = false;
+    }
+  },methods: {
+    enableAudio() {
+      this.showAudioNotification = false;
+      // Forzar la reproducción de la música de muerte
+      audioManager.playMusic('menuDeath');
+    },
     reiniciarJuego() {
+      // Detener música de muerte y volver al menú principal
+      audioManager.stopAllMusic();
       this.$router.push('/');
     },
     emitCheckpoint() {
+      // Detener música de muerte antes de reiniciar el juego
+      audioManager.stopAllMusic();
       this.$emit('checkpoint');
       window.dispatchEvent(new CustomEvent('checkpoint'));
     }
@@ -31,6 +64,44 @@ export default {
 </script>
 
 <style scoped>
+.audio-notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  cursor: pointer;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.audio-notification-content {
+  background: rgba(255, 68, 68, 0.9);
+  padding: 2rem;
+  border-radius: 1rem;
+  text-align: center;
+  color: white;
+  font-size: 1.2rem;
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+  animation: pulse 2s infinite;
+}
+
+.audio-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
 .menu-muerte {
   position: fixed;
   top: 0;

@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { DebugSystem } from '../utils/DebugSystem';
 import { Goblin } from '../entities/Goblin';
 import { Mushroom } from '../entities/Mushroom';
-import { attackMelee, attackMeleeAir, attackMelee2, attackMelee3 } from '../utils/PlayerUtils';
+import { attackMelee, attackMeleeAir, attackMelee2, attackMelee3, showDamageText, healPlayer, applyDamageOverTime } from '../utils/PlayerUtils';
+import { audioManager } from '../utils/AudioManager';
 
 export class Mundo1Scene extends Phaser.Scene {
   constructor() {
@@ -138,11 +139,27 @@ export class Mundo1Scene extends Phaser.Scene {
       spacing: 0
     });
     this.load.image('potion', '/assets/items/potion.png');
+    
+    // Cargar efectos de sonido para ataques
+    this.load.audio('attackBasic', '/assets/sounds/111.mp3');
+    this.load.audio('attackSpecial', '/assets/sounds/222.mp3'); 
+    this.load.audio('attackPowerful', '/assets/sounds/333.mp3');
+    
+    // Cargar música de fondo
+    this.load.audio('menuPrincipal', '/assets/sounds/menu principal.mp3');
+    this.load.audio('menuGame', '/assets/sounds/menu1.mp3');
+    this.load.audio('menuDeath', '/assets/sounds/menu2.mp3');
+    this.load.audio('menuVictory', '/assets/sounds/menu3.mp3');
   }
 
   create() {
     try {
       this.debugSystem.init();
+      
+      // Inicializar audioManager y reproducir música de juego
+      audioManager.init(this);
+      audioManager.playMusic('menuGame');
+      
       this.physics.world.setBounds(0, 0, 3200, 600);
       this.player = this.physics.add.sprite(300, 300, 'idle');
       this.player.setScale(1.5);
@@ -305,6 +322,8 @@ export class Mundo1Scene extends Phaser.Scene {
             this.attackCooldown = true;
             this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
             this.player.setVelocityX(0);
+            // Reproducir sonido de ataque básico
+            this.sound.play('attackBasic', { volume: 0.5 });
             attackMelee(this, this.player, this.goblins, this.ultimateActive);
             this.time.delayedCall(this.attackCooldownTime, () => {
               this.attackCooldown = false;
@@ -314,6 +333,8 @@ export class Mundo1Scene extends Phaser.Scene {
             this.jumpAttackCooldown = true;
             this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
             this.player.setVelocityX(0);
+            // Reproducir sonido de ataque básico para jump attack
+            this.sound.play('attackBasic', { volume: 0.5 });
             attackMeleeAir(this, this.player, this.goblins, this.ultimateActive);
             this.time.delayedCall(this.jumpAttackCooldownTime, () => {
               this.jumpAttackCooldown = false;
@@ -384,6 +405,8 @@ export class Mundo1Scene extends Phaser.Scene {
           this.attack2Cooldown = true;
           this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
           this.player.setVelocityX(0);
+          // Reproducir sonido de ataque especial (Q)
+          this.sound.play('attackSpecial', { volume: 0.5 });
           attackMelee2(this, this.player, this.goblins, this.ultimateActive);
           this.time.delayedCall(this.attack2CooldownTime, () => {
             this.attack2Cooldown = false;
@@ -397,6 +420,8 @@ export class Mundo1Scene extends Phaser.Scene {
           this.attack3Cooldown = true;
           this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
           this.player.setVelocityX(0);
+          // Reproducir sonido de ataque poderoso (E)
+          this.sound.play('attackPowerful', { volume: 0.5 });
           attackMelee3(this, this.player, this.goblins, this.ultimateActive);
           this.time.delayedCall(this.attack3CooldownTime, () => {
             this.attack3Cooldown = false;
@@ -458,130 +483,6 @@ export class Mundo1Scene extends Phaser.Scene {
       console.error('Error in create:', error);
       this.scene.start('Mundo1Scene');
     }
-  }
-  
-  healPlayer(amount) {
-    if (this.player.isDead) return;
-    
-    const oldHp = this.player.hp;
-    const targetHp = Math.min(this.player.maxHp, this.player.hp + amount);
-    const actualHeal = targetHp - oldHp;
-    
-    if (actualHeal > 0) {
-      // Curar gradualmente
-      const healPerTick = Math.ceil(actualHeal / 10); // Dividir la curación en 10 ticks
-      let currentHeal = 0;
-      
-      const healInterval = this.time.addEvent({
-        delay: 100,
-        callback: () => {
-          if (currentHeal < actualHeal) {
-            const healThisTick = Math.min(healPerTick, actualHeal - currentHeal);
-            this.player.hp += healThisTick;
-            currentHeal += healThisTick;
-            
-            // Crear texto flotante para cada tick de curación
-            const healTextTick = this.add.text(this.player.x, this.player.y - 30, `+${healThisTick}`, {
-              font: 'bold 16px Arial',
-              fill: '#00ff00',
-              stroke: '#000000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-
-            // Animación del texto
-            this.tweens.add({
-              targets: healTextTick,
-              y: this.player.y - 60,
-              alpha: 0,
-              duration: 1000,
-              ease: 'Power2',
-              onComplete: () => {
-                healTextTick.destroy();
-              }
-            });
-            
-            // Actualizar barra de vida
-            const healthPercent = this.player.hp / this.player.maxHp;
-            this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
-            
-            // Cambiar color según la vida
-            if (healthPercent > 0.6) {
-              this.playerHealthBar.fillColor = 0x00ff00; // Verde
-            } else if (healthPercent > 0.3) {
-              this.playerHealthBar.fillColor = 0xffff00; // Amarillo
-            } else {
-              this.playerHealthBar.fillColor = 0xff0000; // Rojo;
-            }
-          } else {
-            healInterval.remove();
-          }
-        },
-        callbackScope: this,
-        repeat: 9
-      });
-    }
-  }
-
-  applyDamageOverTime(goblin, damage) {
-    // Aplicar el daño inicial
-    goblin.takeDamage(damage, true);
-    
-    // Crear texto flotante de daño
-    const damageText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
-      font: 'bold 16px Arial',
-      fill: '#ff0000',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setOrigin(0.5);
-
-    // Animación del texto
-    this.tweens.add({
-      targets: damageText,
-      y: goblin.y - 60,
-      alpha: 0,
-      duration: 1000,
-      ease: 'Power2',
-      onComplete: () => {
-        damageText.destroy();
-      }
-    });
-    
-    // Programar el daño adicional cada segundo durante 3 segundos
-    let ticks = 0;
-    const damageInterval = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        if (goblin && !goblin.isDead && ticks < 3) {
-          goblin.takeDamage(damage, true);
-          
-          // Crear texto flotante para cada tick de daño
-          const dotText = this.add.text(goblin.x, goblin.y - 30, `-${damage}`, {
-            font: 'bold 16px Arial',
-            fill: '#ff0000',
-            stroke: '#000000',
-            strokeThickness: 3
-          }).setOrigin(0.5);
-
-          // Animación del texto
-          this.tweens.add({
-            targets: dotText,
-            y: goblin.y - 60,
-            alpha: 0,
-            duration: 1000,
-            ease: 'Power2',
-            onComplete: () => {
-              dotText.destroy();
-            }
-          });
-          
-          ticks++;
-        } else {
-          damageInterval.remove();
-        }
-      },
-      callbackScope: this,
-      repeat: 2
-    });
   }
 
   createTrees() {
@@ -840,9 +741,11 @@ export class Mundo1Scene extends Phaser.Scene {
       this.player.anims.play('death', true);
       this.player.setVelocity(0, 0);
       this.input.keyboard.enabled = false;
-      // Restar 100 puntos por muerte
-      this.score = Math.max(0, this.score - 100);
+      // Resetear puntuación a 0 por muerte
+      this.score = 0;
       this.scoreText.setText(`Puntuación: ${this.score}`);
+      // Detener música de juego antes de mostrar el menú de muerte
+      audioManager.stopAllMusic();
       this.time.delayedCall(2000, () => {
         window.dispatchEvent(new CustomEvent('player-died'));
       });
@@ -867,6 +770,11 @@ export class Mundo1Scene extends Phaser.Scene {
         if (!this.player.isDead) {
           this.isAttacking = false;
           this.input.keyboard.enabled = true;
+          
+          // Resetear el estado de las teclas para evitar inputs pegados
+          this.cursors.left.isDown = false;
+          this.cursors.right.isDown = false;
+          this.cursors.jump.isDown = false;
           
           // Asegurar que la velocidad está en 0
           this.player.setVelocity(0, 0);
@@ -952,7 +860,6 @@ export class Mundo1Scene extends Phaser.Scene {
   }
 }
 
-
 export class Potion extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
     super(scene, x, y, 'potion');
@@ -1012,6 +919,7 @@ export class Mundo2Scene extends Phaser.Scene {
     this.HEALTH_BAR_MARGIN_LEFT = 40;
     this.hasPotion = false;
     this.score = 0; // Añadir puntuación inicial
+    this.initialScore = 0;
   }
 
   init(data) {
@@ -1090,11 +998,27 @@ export class Mundo2Scene extends Phaser.Scene {
       margin: 0,
       spacing: 0
     });
+    
+    // Cargar efectos de sonido para ataques
+    this.load.audio('attackBasic', '/assets/sounds/111.mp3');
+    this.load.audio('attackSpecial', '/assets/sounds/222.mp3'); 
+    this.load.audio('attackPowerful', '/assets/sounds/333.mp3');
+    
+    // Cargar música de fondo
+    this.load.audio('menuPrincipal', '/assets/sounds/menu principal.mp3');
+    this.load.audio('menuGame', '/assets/sounds/menu1.mp3');
+    this.load.audio('menuDeath', '/assets/sounds/menu2.mp3');
+    this.load.audio('menuVictory', '/assets/sounds/menu3.mp3');
   }
 
   create() {
     try {
       this.debugSystem.init();
+      
+      // Inicializar audioManager y reproducir música de juego
+      audioManager.init(this);
+      audioManager.playMusic('menuGame');
+      
       this.physics.world.setBounds(0, 0, 3200, 600);
       this.cameras.main.fadeIn(500, 0, 0, 0);
 
@@ -1116,6 +1040,8 @@ export class Mundo2Scene extends Phaser.Scene {
       this.groundCollider.refreshBody();
       this.groundCollider.setVisible(false);
       this.physics.add.collider(this.player, this.groundCollider);
+
+      window.addEventListener('player-died', this.handlePlayerDeathBound = this.handlePlayerDeath.bind(this));
 
       this.bgLayers = [
         { key: 'bg3', depth: -30, speed: 0.7 },
@@ -1259,6 +1185,8 @@ export class Mundo2Scene extends Phaser.Scene {
             this.attackCooldown = true;
             this.player.anims.play(this.ultimateActive ? 'attack1_ult' : 'attack1', true);
             this.player.setVelocityX(0);
+            // Reproducir sonido de ataque básico
+            this.sound.play('attackBasic', { volume: 0.5 });
             attackMelee(this, this.player, this.mushrooms, this.ultimateActive);
             this.time.delayedCall(this.attackCooldownTime, () => { this.attackCooldown = false; });
           } else if (!this.player.body.touching.down && !this.jumpAttackCooldown) {
@@ -1266,6 +1194,8 @@ export class Mundo2Scene extends Phaser.Scene {
             this.jumpAttackCooldown = true;
             this.player.anims.play(this.ultimateActive ? 'jump_attack_ult' : 'jump_attack', true);
             this.player.setVelocityX(0);
+            // Reproducir sonido de ataque básico para jump attack
+            this.sound.play('attackBasic', { volume: 0.5 });
             attackMeleeAir(this, this.player, this.mushrooms, this.ultimateActive);
             this.time.delayedCall(this.jumpAttackCooldownTime, () => { this.jumpAttackCooldown = false; });
           }
@@ -1289,6 +1219,8 @@ export class Mundo2Scene extends Phaser.Scene {
           this.attack2Cooldown = true;
           this.player.anims.play(this.ultimateActive ? 'attack2_ult' : 'attack2', true);
           this.player.setVelocityX(0);
+          // Reproducir sonido de ataque especial (Q)
+          this.sound.play('attackSpecial', { volume: 0.5 });
           attackMelee2(this, this.player, this.mushrooms, this.ultimateActive);
           this.time.delayedCall(this.attack2CooldownTime, () => { this.attack2Cooldown = false; });
         }
@@ -1299,6 +1231,8 @@ export class Mundo2Scene extends Phaser.Scene {
           this.attack3Cooldown = true;
           this.player.anims.play(this.ultimateActive ? 'attack3_ult' : 'attack3', true);
           this.player.setVelocityX(0);
+          // Reproducir sonido de ataque poderoso (E)
+          this.sound.play('attackPowerful', { volume: 0.5 });
           attackMelee3(this, this.player, this.mushrooms, this.ultimateActive);
           this.time.delayedCall(this.attack3CooldownTime, () => { this.attack3Cooldown = false; });
         }
@@ -1344,6 +1278,8 @@ export class Mundo2Scene extends Phaser.Scene {
           // Guardar la puntuación y el conteo de muertes en localStorage
           localStorage.setItem('finalScore', this.score);
           localStorage.setItem('deathCount', this.deathCount);
+          // Detener música de juego antes de mostrar la pantalla de victoria
+          audioManager.stopAllMusic();
           // Emitir evento global con score y deathCount
           window.dispatchEvent(new CustomEvent('game-finished', { 
             detail: { score: this.score, deathCount: this.deathCount }
@@ -1356,6 +1292,25 @@ export class Mundo2Scene extends Phaser.Scene {
       this.scene.start('Mundo2Scene');
     }
   }
+
+  handlePlayerDeath() {
+    // Restaurar la puntuación al valor inicial al cruzar el portal
+    this.score = this.initialScore;
+    // Reiniciar la escena y pasar los datos necesarios
+    this.scene.restart({
+      hasPotion: this.hasPotion,
+      score: this.score,
+      deathCount: this.deathCount
+    });
+  }
+
+  shutdown() {
+    window.removeEventListener('player-died', this.handlePlayerDeath.bind(this));
+  }
+  destroy() {
+    this.shutdown();
+  }
+
 
   createTrees() {
     const treePositions = [
@@ -1588,8 +1543,10 @@ export class Mundo2Scene extends Phaser.Scene {
       this.player.setVelocity(0, 0);
       this.input.keyboard.enabled = false;
       // Restar 100 puntos por muerte
-      this.score = Math.max(0, this.score - 100);
-      this.scoreText.setText(`Puntuación: ${this.score}`);
+      //this.score = Math.max(0, this.score - 100);
+      //this.scoreText.setText(`Puntuación: ${this.score}`);
+      // Detener música de juego antes de mostrar el menú de muerte
+      audioManager.stopAllMusic();
       this.time.delayedCall(2000, () => {
         window.dispatchEvent(new CustomEvent('player-died'));
       });
@@ -1614,6 +1571,11 @@ export class Mundo2Scene extends Phaser.Scene {
         if (!this.player.isDead) {
           this.isAttacking = false;
           this.input.keyboard.enabled = true;
+          
+          // Resetear el estado de las teclas para evitar inputs pegados
+          this.cursors.left.isDown = false;
+          this.cursors.right.isDown = false;
+          this.cursors.jump.isDown = false;
           
           // Asegurar que la velocidad está en 0
           this.player.setVelocity(0, 0);
@@ -1672,7 +1634,6 @@ export class Mundo2Scene extends Phaser.Scene {
     });
   }
 
-  // Añadir método para actualizar la puntuación
   updateScore(points) {
     this.score += points;
     this.scoreText.setText(`Puntuación: ${this.score}`);
@@ -1697,263 +1658,6 @@ export class Mundo2Scene extends Phaser.Scene {
       }
     });
   }
-
-  attackMelee() {
-    const meleeWidth = 60;
-    const meleeHeight = 80;
-    const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5;
-    const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 10;
-
-    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
-    this.physics.add.existing(this.attackHitbox);
-    this.attackHitboxBody = this.attackHitbox.body;
-    this.attackHitboxBody.setAllowGravity(false);
-    this.attackHitboxBody.setImmovable(true);
-    this.attackHitbox.visible = false;
-
-      this.mushrooms.forEach(mushroom => {
-        if (mushroom && !mushroom.isDead) {
-          const mushroomBounds = mushroom.getBounds();
-        const hitboxBounds = this.attackHitbox.getBounds();
-          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
-            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
-            if (isFacingMushroom) {
-              const damage = this.ultimateActive ? 64 : 40;
-            mushroom.takeDamage(damage);
-            }
-          }
-        }
-      });
-    this.player.once('animationcomplete-attack1', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-attack1_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-  }
-
-  attackMeleeAir() {
-    const meleeWidth = 90;
-    const meleeHeight = 110;
-    const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5;
-    const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 10;
-
-    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
-    this.physics.add.existing(this.attackHitbox);
-    this.attackHitboxBody = this.attackHitbox.body;
-    this.attackHitboxBody.setAllowGravity(false);
-    this.attackHitboxBody.setImmovable(true);
-    this.attackHitbox.visible = false;
-
-      this.mushrooms.forEach(mushroom => {
-        if (mushroom && !mushroom.isDead) {
-          const mushroomBounds = mushroom.getBounds();
-        const hitboxBounds = this.attackHitbox.getBounds();
-          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
-            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
-            if (isFacingMushroom) {
-              const damage = this.ultimateActive ? 50 : 30;
-            mushroom.takeDamage(damage);
-            }
-          }
-        }
-      });
-    this.player.once('animationcomplete-jump_attack', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-jump_attack_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-  }
-
-  attackMelee2() {
-    const meleeWidth = 70;
-    const meleeHeight = 90;
-    const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5;
-    const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 10;
-    
-    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
-    this.physics.add.existing(this.attackHitbox);
-    this.attackHitboxBody = this.attackHitbox.body;
-    this.attackHitboxBody.setAllowGravity(false);
-    this.attackHitboxBody.setImmovable(true);
-    this.attackHitbox.visible = false;
-
-      this.mushrooms.forEach(mushroom => {
-        if (mushroom && !mushroom.isDead) {
-          const mushroomBounds = mushroom.getBounds();
-          const hitboxBounds = this.attackHitbox.getBounds();
-          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
-            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
-            if (isFacingMushroom) {
-              const damage = this.ultimateActive ? 62 : 50;
-            mushroom.takeDamage(damage);
-            }
-          }
-        }
-      });
-    this.player.once('animationcomplete-attack2', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-attack2_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-  }
-
-  attackMelee3() {
-    const meleeWidth = 80;
-    const meleeHeight = 100;
-    const facing = this.player.flipX ? -1 : 1;
-    const offsetX = facing * 5;
-    const hitboxX = this.player.x + offsetX;
-    const hitboxY = this.player.y - 10;
-    
-    this.attackHitbox = this.add.rectangle(hitboxX, hitboxY, meleeWidth, meleeHeight);
-    this.physics.add.existing(this.attackHitbox);
-    this.attackHitboxBody = this.attackHitbox.body;
-    this.attackHitboxBody.setAllowGravity(false);
-    this.attackHitboxBody.setImmovable(true);
-    this.attackHitbox.visible = false;
-
-      this.mushrooms.forEach(mushroom => {
-        if (mushroom && !mushroom.isDead) {
-          const mushroomBounds = mushroom.getBounds();
-          const hitboxBounds = this.attackHitbox.getBounds();
-          if (Phaser.Geom.Rectangle.Overlaps(mushroomBounds, hitboxBounds)) {
-            const isFacingMushroom = (facing === -1 && mushroom.x < this.player.x) || (facing === 1 && mushroom.x > this.player.x);
-            if (isFacingMushroom) {
-              const damage = this.ultimateActive ? 42 : 35;
-            mushroom.takeDamage(damage);
-            }
-          }
-        }
-      });
-    this.player.once('animationcomplete-attack3', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-    this.player.once('animationcomplete-attack3_ult', () => {
-      if (this.attackHitbox) {
-        this.attackHitbox.destroy();
-        this.attackHitbox = null;
-      }
-    });
-  }
-
-  showDamageText(x, y, amount, color = '#ff0000') {
-    const damageText = this.add.text(x, y, `-${amount}`, {
-      font: 'bold 20px Arial',
-      fill: color,
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setOrigin(0.5);
-    this.tweens.add({
-      targets: damageText,
-      y: y - 30,
-      alpha: 0,
-      duration: 1000,
-      ease: 'Power2',
-      onComplete: () => {
-        damageText.destroy();
-      }
-    });
-  }
-
-  healPlayer(amount) {
-    if (this.player.isDead) return;
-    const oldHp = this.player.hp;
-    const targetHp = Math.min(this.player.maxHp, this.player.hp + amount);
-    const actualHeal = targetHp - oldHp;
-    if (actualHeal > 0) {
-      const healPerTick = Math.ceil(actualHeal / 10);
-      let currentHeal = 0;
-      const healInterval = this.time.addEvent({
-        delay: 100,
-        callback: () => {
-          if (currentHeal < actualHeal) {
-            const healThisTick = Math.min(healPerTick, actualHeal - currentHeal);
-            this.player.hp += healThisTick;
-            currentHeal += healThisTick;
-            // Texto flotante de curación
-            const healTextTick = this.add.text(this.player.x, this.player.y - 30, `+${healThisTick}`, {
-              font: 'bold 16px Arial',
-              fill: '#00ff00',
-              stroke: '#000000',
-              strokeThickness: 3
-            }).setOrigin(0.5);
-            this.tweens.add({
-              targets: healTextTick,
-              y: this.player.y - 60,
-              alpha: 0,
-              duration: 1000,
-              ease: 'Power2',
-              onComplete: () => { healTextTick.destroy(); }
-            });
-            // Actualizar barra de vida
-            const healthPercent = this.player.hp / this.player.maxHp;
-            this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
-            if (healthPercent > 0.6) {
-              this.playerHealthBar.fillColor = 0x00ff00;
-            } else if (healthPercent > 0.3) {
-              this.playerHealthBar.fillColor = 0xffff00;
-            } else {
-              this.playerHealthBar.fillColor = 0xff0000;
-            }
-          } else {
-            healInterval.remove();
-          }
-        },
-        callbackScope: this,
-        repeat: 9
-      });
-    }
-  }
-
-  applyDamageOverTime(mushroom, damage) {
-    mushroom.takeDamage(damage, true);
-    this.showDamageText(mushroom.x, mushroom.y - 30, damage, '#ff0000');
-    let ticks = 0;
-    const damageInterval = this.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        if (mushroom && !mushroom.isDead && ticks < 3) {
-          mushroom.takeDamage(damage, true);
-          this.showDamageText(mushroom.x, mushroom.y - 30, damage, '#ff0000');
-          ticks++;
-        } else {
-          damageInterval.remove();
-        }
-      },
-      callbackScope: this,
-      repeat: 2
-      });
-    }
-  }
+}
 
 

@@ -1,5 +1,13 @@
 <template>
   <div class="menu-final">
+    <!-- Notificación de audio -->
+    <div v-if="showAudioNotification" class="audio-notification" @click="enableAudio">
+      <div class="audio-notification-content">
+        <span class="audio-icon">🔊</span>
+        <span>Haz clic para habilitar el audio</span>
+      </div>
+    </div>
+    
     <div class="menu-content">
       <h1 class="victory-title">¡Felicidades!</h1>
       <div class="victory-message">Has completado tu entrenamiento como samurái</div>
@@ -30,6 +38,8 @@
 </template>
 
 <script>
+import { audioManager } from '../utils/AudioManager';
+
 export default {
   name: 'MenuFinal',
   data() {
@@ -38,7 +48,8 @@ export default {
       deathCount: 0,
       finalScoreWithDeaths: 0,
       stars: 1,
-      maxScore: 975
+      maxScore: 975,
+      showAudioNotification: true
     };
   },
   created() {
@@ -58,11 +69,29 @@ export default {
       this.stars = 1;
     }
   },
+  mounted() {
+    // Reproducir música de victoria
+    audioManager.playMusic('menuVictory');
+    
+    // Mostrar notificación si el usuario no ha interactuado O si hay música pendiente
+    if (!audioManager.userHasInteracted || audioManager.pendingMusic) {
+      this.showAudioNotification = true;
+    } else {
+      this.showAudioNotification = false;
+    }
+  },
   methods: {
+    enableAudio() {
+      this.showAudioNotification = false;
+      // Forzar la reproducción de la música de victoria
+      audioManager.playMusic('menuVictory');
+    },
     volverAlMenu() {
       // Limpiar la puntuación y muertes del localStorage
       localStorage.removeItem('finalScore');
       localStorage.removeItem('deathCount');
+      // Detener música de victoria antes de volver al menú
+      audioManager.stopAllMusic();
       this.$router.push('/');
     },
     confettiStyle(n) {
@@ -84,6 +113,44 @@ export default {
 </script>
 
 <style scoped>
+.audio-notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  cursor: pointer;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.audio-notification-content {
+  background: rgba(52, 152, 219, 0.9);
+  padding: 2rem;
+  border-radius: 1rem;
+  text-align: center;
+  color: white;
+  font-size: 1.2rem;
+  box-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+  animation: pulse 2s infinite;
+}
+
+.audio-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
 .menu-final {
   min-height: 100vh;
   display: flex;
