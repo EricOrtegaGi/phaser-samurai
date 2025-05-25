@@ -47,11 +47,11 @@ export default {
       this.showAudioNotification = false;
       // Forzar la reproducción de la música de muerte
       audioManager.playMusic('menuDeath');
-    },    reiniciarJuego() {
+    },
+    reiniciarJuego() {
       // Detener música de muerte y volver al menú principal
       audioManager.stopAllMusic();
-      // Pasar un parámetro indicando que venimos de la pantalla de muerte
-      this.$router.push({ path: '/', query: { fromDeath: 'true' }});
+      this.$router.push('/');
     },
     emitCheckpoint() {
       // Detener música de muerte antes de reiniciar el juego

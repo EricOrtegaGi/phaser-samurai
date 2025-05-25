@@ -1,32 +1,26 @@
-// AudioManager.js - Gestor centralizado de audio para el juego
-
-class AudioManager {  constructor() {
+class AudioManager {
+  constructor() {
     this.currentMusic = null;
-    this.currentMusicKey = null; // Para trackear qué música está sonando
     this.musicVolume = 0.3;
     this.sfxVolume = 0.5;
     this.isMuted = false;
     this.currentScene = null;
-    this.nativeAudio = null; // Para audio nativo en menús
-    this.pendingMusic = null; // Para guardar música pendiente hasta la interacción del usuario
+    this.nativeAudio = null;
+    this.pendingMusic = null;
     this.userHasInteracted = false;
     
-    // Escuchar la primera interacción del usuario
     this.setupUserInteractionListener();
   }
 
-  // Configurar listener para detectar la primera interacción del usuario
   setupUserInteractionListener() {
     const handleFirstInteraction = () => {
       this.userHasInteracted = true;
       
-      // Si hay música pendiente, reproducirla ahora
       if (this.pendingMusic) {
         this.playMusic(this.pendingMusic.audioKey, this.pendingMusic.loop, this.pendingMusic.volume);
         this.pendingMusic = null;
       }
       
-      // Remover los event listeners ya que ya no los necesitamos
       document.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('keydown', handleFirstInteraction);
       document.removeEventListener('touchstart', handleFirstInteraction);
@@ -37,40 +31,110 @@ class AudioManager {  constructor() {
     document.addEventListener('touchstart', handleFirstInteraction);
   }
 
-  // Inicializar con una escena de Phaser
   init(scene) {
     this.currentScene = scene;
   }
 
-  // Detener toda la música actual
   stopAllMusic() {
-    // Detener música de Phaser
+    if (this.musicTimeout) {
+      clearTimeout(this.musicTimeout);
+      this.musicTimeout = null;
+    }
+
     if (this.currentMusic) {
-      this.currentMusic.stop();
+      try {
+        this.currentMusic.stop();
+        if (this.currentMusic.destroy) {
+          this.currentMusic.destroy();
+        }
+      } catch (e) {
+        console.warn('Error al destruir música Phaser:', e);
+      }
       this.currentMusic = null;
     }
-    
-    // Detener audio nativo
+
     if (this.nativeAudio) {
-      this.nativeAudio.pause();
+      try {
+        this.nativeAudio.pause();
+        this.nativeAudio.loop = false;
+        this.nativeAudio.currentTime = 0;
+        this.nativeAudio.src = '';
+        this.nativeAudio.load();
+      } catch (e) {
+        console.warn('Error al limpiar audio nativo:', e);
+      }
       this.nativeAudio = null;
     }
-  }  // Reproducir música con transición suave
+  }
+
   playMusic(audioKey, loop = true, volume = null) {
-    // Si el audio key es el mismo que ya está sonando, no hacer nada para evitar reiniciar la misma música
-    if (this.currentMusicKey === audioKey && this.currentMusic) {
-      return;
-    }
-    
     // Si el usuario no ha interactuado aún, guardar la música para reproducir después
     if (!this.userHasInteracted) {
       this.pendingMusic = { audioKey, loop, volume };
       console.log(`Música ${audioKey} programada para reproducir después de la interacción del usuario`);
       return;
-    }// Detener música actual primero
+    }
+    // Detener música actual primero
     this.stopAllMusic();
-    
-    // Intentar reproducir con Phaser si tenemos una escena
+
+    // Si es un menú, reproducir solo 10 segundos con fade out
+    const isMenuMusic = ['menuPrincipal', 'menuDeath'].includes(audioKey); // menuVictory eliminado
+    if (isMenuMusic) {
+      loop = false; // Forzar no repetir música de menú
+      let fadeDuration = 1500;
+      let playDuration = 19500;
+      let fadeStep = 100;
+      let fadeSteps = Math.floor(fadeDuration / fadeStep);
+      let originalVolume = volume || this.musicVolume;
+      let fadeOutFn = null;
+
+      if (this.currentScene && this.currentScene.sound && this.currentScene.cache && this.currentScene.cache.audio && this.currentScene.cache.audio.exists(audioKey)) {
+        try {
+          this.currentMusic = this.currentScene.sound.add(audioKey, {
+            volume: originalVolume,
+            loop: loop
+          });
+          if (!this.isMuted) {
+            this.currentMusic.play();
+          }
+          this.musicTimeout = setTimeout(() => {
+            let step = 0;
+            fadeOutFn = setInterval(() => {
+              if (this.currentMusic && step < fadeSteps) {
+                let v = originalVolume * (1 - step / fadeSteps);
+                this.currentMusic.setVolume(Math.max(0, v));
+                step++;
+              } else {
+                clearInterval(fadeOutFn);
+                this.stopAllMusic();
+              }
+            }, fadeStep);
+          }, playDuration);
+        } catch (error) {
+          console.error(`Error reproduciendo música con Phaser ${audioKey}:`, error);
+        }
+        return;
+      }
+
+      this.playNativeAudio(audioKey, loop, originalVolume);
+      if (this.nativeAudio) {
+        this.musicTimeout = setTimeout(() => {
+          let step = 0;
+          fadeOutFn = setInterval(() => {
+            if (this.nativeAudio && step < fadeSteps) {
+              let v = originalVolume * (1 - step / fadeSteps);
+              this.nativeAudio.volume = Math.max(0, v);
+              step++;
+            } else {
+              clearInterval(fadeOutFn);
+              this.stopAllMusic();
+            }
+          }, fadeStep);
+        }, playDuration);
+      }
+      return;
+    }
+
     if (this.currentScene && this.currentScene.sound && this.currentScene.cache && this.currentScene.cache.audio && this.currentScene.cache.audio.exists(audioKey)) {
       try {
         this.currentMusic = this.currentScene.sound.add(audioKey, {
@@ -87,24 +151,19 @@ class AudioManager {  constructor() {
       }
     }
     
-    // Fallback: usar audio nativo del navegador
     this.playNativeAudio(audioKey, loop, volume);
   }
-  // Reproducir audio usando APIs nativas del navegador
+
   playNativeAudio(audioKey, loop = true, volume = null) {
     // Mapear las claves de audio a rutas de archivos
     const audioFiles = {
       'menuPrincipal': '/assets/sounds/menu principal.mp3',
       'menuGame': '/assets/sounds/menu1.mp3',
       'menuDeath': '/assets/sounds/menu2.mp3',
-      'menuVictory': '/assets/sounds/menu3.mp3',
       'attackBasic': '/assets/sounds/111.mp3',
       'attackSpecial': '/assets/sounds/222.mp3',
       'attackPowerful': '/assets/sounds/333.mp3'
     };
-    
-    // Guardar la clave de audio para referencia
-    this.currentMusicKey = audioKey;
 
     const audioPath = audioFiles[audioKey];
     if (!audioPath) {
@@ -127,8 +186,7 @@ class AudioManager {  constructor() {
     }
   }
 
-  // Reproducir efecto de sonido
-  playSFX(audioKey, volume = null) {    // Intentar con Phaser primero
+  playSFX(audioKey, volume = null) {
     if (this.currentScene && this.currentScene.sound && this.currentScene.cache && this.currentScene.cache.audio && this.currentScene.cache.audio.exists(audioKey)) {
       try {
         const sfx = this.currentScene.sound.add(audioKey, {
@@ -144,34 +202,28 @@ class AudioManager {  constructor() {
       }
     }
     
-    // Fallback: usar audio nativo para SFX también
     this.playNativeAudio(audioKey, false, volume || this.sfxVolume);
   }
-  // Establecer volumen de música
+
   setMusicVolume(volume) {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     
-    // Actualizar volumen en música de Phaser
     if (this.currentMusic) {
       this.currentMusic.setVolume(this.musicVolume);
     }
     
-    // Actualizar volumen en audio nativo
     if (this.nativeAudio) {
       this.nativeAudio.volume = this.musicVolume;
     }
   }
 
-  // Establecer volumen de efectos
   setSFXVolume(volume) {
     this.sfxVolume = Math.max(0, Math.min(1, volume));
   }
 
-  // Silenciar/desmutear todo el audio
   toggleMute() {
     this.isMuted = !this.isMuted;
     
-    // Manejar música de Phaser
     if (this.currentMusic) {
       if (this.isMuted) {
         this.currentMusic.pause();
@@ -180,7 +232,6 @@ class AudioManager {  constructor() {
       }
     }
     
-    // Manejar audio nativo
     if (this.nativeAudio) {
       if (this.isMuted) {
         this.nativeAudio.pause();
@@ -192,7 +243,6 @@ class AudioManager {  constructor() {
     }
   }
 
-  // Pausar música actual
   pauseMusic() {
     if (this.currentMusic) {
       this.currentMusic.pause();
@@ -202,7 +252,6 @@ class AudioManager {  constructor() {
     }
   }
 
-  // Reanudar música actual
   resumeMusic() {
     if (this.currentMusic && !this.isMuted) {
       this.currentMusic.resume();
@@ -215,5 +264,4 @@ class AudioManager {  constructor() {
   }
 }
 
-// Exportar instancia singleton
 export const audioManager = new AudioManager();
