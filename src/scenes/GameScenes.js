@@ -663,7 +663,9 @@ export class Mundo1Scene extends Phaser.Scene {
   update() {
     try {
       this.debugSystem.update();
-      
+      if (this.player.isDead || this.activatingUltimate) {
+      return; // No procesar movimiento si está muerto o activando ultimate
+    }
       // Actualizar fondos
       if (this.player) {
         const cam = this.cameras.main;
@@ -733,88 +735,71 @@ export class Mundo1Scene extends Phaser.Scene {
       console.error('Error in game update:', error);
     }
   }
+takePlayerDamage(amount) {
+  if (this.player.isDead) return;
 
-  takePlayerDamage(amount) {
-    if (this.player.isDead) return;
-    const willDie = (this.player.hp - amount) <= 0;
-    this.player.hp -= amount;
-    if (this.player.hp <= 0) {
-      this.player.hp = 0;
-      this.player.isDead = true;
-      this.isAttacking = true;
-      this.player.anims.play('death', true);
-      this.player.setVelocity(0, 0);
-      this.input.keyboard.enabled = false;
-      // Resetear puntuación a 0 por muerte
-      this.score = 0;
-      this.scoreText.setText(`Puntuación: ${this.score}`);
-      // Detener música de juego antes de mostrar el menú de muerte
-      audioManager.stopAllMusic();
-      this.time.delayedCall(2000, () => {
-        window.dispatchEvent(new CustomEvent('player-died'));
-      });
-      this.deathCount++;
-    } else if (amount > 0) {
-      const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
-      this.isAttacking = true;
-      this.player.anims.play(animKey, true);
-      
-      // Si se estaba activando la ultimate, cancelarla
-      if (this.activatingUltimate) {
-        this.activatingUltimate = false;
-        // Remover el listener de animationcomplete-shout para evitar conflictos
-        this.player.off('animationcomplete-shout');
+  const willDie = (this.player.hp - amount) <= 0;
+  this.player.hp -= amount;
+
+  if (this.player.hp <= 0) {
+    // Código existente para manejar la muerte...
+  } else if (amount > 0) {
+    const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
+    this.isAttacking = true;
+    this.player.anims.play(animKey, true);
+
+    // Cancelar ultimate si está activándose
+    if (this.activatingUltimate) {
+      this.activatingUltimate = false;
+      this.player.off('animationcomplete-shout'); // Limpiar listener de shout
+      this.input.keyboard.enabled = true; // Rehabilitar controles inmediatamente
+    }
+
+    // Forzar detención del jugador
+    this.player.setVelocity(0, 0);
+    this.player.body.setAcceleration(0, 0);
+    this.player.body.setDrag(0, 0); // Restablecer drag a 0
+
+    // Deshabilitar controles temporalmente
+    this.input.keyboard.enabled = false;
+
+    // Guardar el estado de la ultimate
+    const wasUltimateActive = this.ultimateActive;
+
+    this.player.once('animationcomplete-' + animKey, () => {
+      if (!this.player.isDead) {
+        this.isAttacking = false;
+        this.input.keyboard.enabled = true;
+
+        // Resetear el estado de las teclas
+        this.cursors.left.isDown = false;
+        this.cursors.right.isDown = false;
+        this.cursors.jump.isDown = false;
+
+        // Asegurar que la física está limpia
+        this.player.setVelocity(0, 0);
+        this.player.body.setAcceleration(0, 0);
+        this.player.body.setDrag(0, 0);
+
+        // Restaurar animación correcta
+        this.player.anims.play(wasUltimateActive ? 'idle_ult' : 'idle', true);
       }
-      
-      // Forzar detención del jugador
-      this.player.setVelocity(0, 0);
-      this.player.body.setAcceleration(0, 0);
-      this.player.body.setDrag(1000, 0);
-      
-      // Deshabilitar controles temporalmente
-      this.input.keyboard.enabled = false;
-      
-      // Guardar el estado de la ultimate
-      const wasUltimateActive = this.ultimateActive;
-      
-      this.player.once('animationcomplete-' + animKey, () => {
-        if (!this.player.isDead) {
-          this.isAttacking = false;
-          this.input.keyboard.enabled = true;
-          
-          // Resetear el estado de las teclas para evitar inputs pegados
-          this.cursors.left.isDown = false;
-          this.cursors.right.isDown = false;
-          this.cursors.jump.isDown = false;
-          
-          // Asegurar que la velocidad está en 0
-          this.player.setVelocity(0, 0);
-          this.player.body.setAcceleration(0, 0);
-          this.player.body.setDrag(0, 0);
-          
-          // Restaurar la animación correcta basada en el estado de la ultimate
-          if (wasUltimateActive) {
-            this.player.anims.play('idle_ult', true);
-          } else {
-            this.player.anims.play('idle', true);
-          }
-        }
-      });
-    }
-    
-    // Actualizar barra de vida
-    const healthPercent = this.player.hp / this.player.maxHp;
-    this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
-    
-    // Cambiar color según la vida
-    if (healthPercent > 0.6) {
-      this.playerHealthBar.fillColor = 0x00ff00; // Verde
-    } else if (healthPercent > 0.3) {
-      this.playerHealthBar.fillColor = 0xffff00; // Amarillo
-    } else {
-      this.playerHealthBar.fillColor = 0xff0000; // Rojo
-    }
+    });
   }
+
+  // Actualizar barra de vida
+  const healthPercent = this.player.hp / this.player.maxHp;
+  this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+
+  // Cambiar color según la vida
+  if (healthPercent > 0.6) {
+    this.playerHealthBar.fillColor = 0x00ff00; // Verde
+  } else if (healthPercent > 0.3) {
+    this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+  } else {
+    this.playerHealthBar.fillColor = 0xff0000; // Rojo
+  }
+}
 
   usePotion() {
     if (!this.hasPotion) return;
@@ -1499,6 +1484,9 @@ export class Mundo2Scene extends Phaser.Scene {
     try {
       this.debugSystem.update();
       
+      if (this.player.isDead || this.activatingUltimate) {
+      return; // No procesar movimiento si está muerto o activando ultimate
+    }
       // Actualizar fondos
       if (this.player) {
         const cam = this.cameras.main;
@@ -1571,87 +1559,71 @@ export class Mundo2Scene extends Phaser.Scene {
     }
   }
 
-  takePlayerDamage(amount) {
-    if (this.player.isDead) return;
-    const willDie = (this.player.hp - amount) <= 0;
-    this.player.hp -= amount;
-    if (this.player.hp <= 0) {
-      this.player.hp = 0;
-      this.player.isDead = true;
-      this.isAttacking = true;
-      this.player.anims.play('death', true);
-      this.player.setVelocity(0, 0);
-      this.input.keyboard.enabled = false;
-      // Restar 100 puntos por muerte
-      //this.score = Math.max(0, this.score - 100);
-      //this.scoreText.setText(`Puntuación: ${this.score}`);
-      // Detener música de juego antes de mostrar el menú de muerte
-      audioManager.stopAllMusic();
-      this.time.delayedCall(2000, () => {
-        window.dispatchEvent(new CustomEvent('player-died'));
-      });
-      this.deathCount++;
-    } else if (amount > 0) {
-      const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
-      this.isAttacking = true;
-      this.player.anims.play(animKey, true);
-      
-      // Si se estaba activando la ultimate, cancelarla
-      if (this.activatingUltimate) {
-        this.activatingUltimate = false;
-        // Remover el listener de animationcomplete-shout para evitar conflictos
-        this.player.off('animationcomplete-shout');
+takePlayerDamage(amount) {
+  if (this.player.isDead) return;
+
+  const willDie = (this.player.hp - amount) <= 0;
+  this.player.hp -= amount;
+
+  if (this.player.hp <= 0) {
+    // Código existente para manejar la muerte...
+  } else if (amount > 0) {
+    const animKey = this.ultimateActive ? 'hurt_ult' : 'hurt';
+    this.isAttacking = true;
+    this.player.anims.play(animKey, true);
+
+    // Cancelar ultimate si está activándose
+    if (this.activatingUltimate) {
+      this.activatingUltimate = false;
+      this.player.off('animationcomplete-shout'); // Limpiar listener de shout
+      this.input.keyboard.enabled = true; // Rehabilitar controles inmediatamente
+    }
+
+    // Forzar detención del jugador
+    this.player.setVelocity(0, 0);
+    this.player.body.setAcceleration(0, 0);
+    this.player.body.setDrag(0, 0); // Restablecer drag a 0
+
+    // Deshabilitar controles temporalmente
+    this.input.keyboard.enabled = false;
+
+    // Guardar el estado de la ultimate
+    const wasUltimateActive = this.ultimateActive;
+
+    this.player.once('animationcomplete-' + animKey, () => {
+      if (!this.player.isDead) {
+        this.isAttacking = false;
+        this.input.keyboard.enabled = true;
+
+        // Resetear el estado de las teclas
+        this.cursors.left.isDown = false;
+        this.cursors.right.isDown = false;
+        this.cursors.jump.isDown = false;
+
+        // Asegurar que la física está limpia
+        this.player.setVelocity(0, 0);
+        this.player.body.setAcceleration(0, 0);
+        this.player.body.setDrag(0, 0);
+
+        // Restaurar animación correcta
+        this.player.anims.play(wasUltimateActive ? 'idle_ult' : 'idle', true);
       }
-      
-      // Forzar detención del jugador
-      this.player.setVelocity(0, 0);
-      this.player.body.setAcceleration(0, 0);
-      this.player.body.setDrag(1000, 0);
-      
-      // Deshabilitar controles temporalmente
-      this.input.keyboard.enabled = false;
-      
-      // Guardar el estado de la ultimate
-      const wasUltimateActive = this.ultimateActive;
-      
-      this.player.once('animationcomplete-' + animKey, () => {
-        if (!this.player.isDead) {
-          this.isAttacking = false;
-          this.input.keyboard.enabled = true;
-          
-          // Resetear el estado de las teclas para evitar inputs pegados
-          this.cursors.left.isDown = false;
-          this.cursors.right.isDown = false;
-          this.cursors.jump.isDown = false;
-          
-          // Asegurar que la velocidad está en 0
-          this.player.setVelocity(0, 0);
-          this.player.body.setAcceleration(0, 0);
-          this.player.body.setDrag(0, 0);
-          
-          // Restaurar la animación correcta basada en el estado de la ultimate
-          if (wasUltimateActive) {
-            this.player.anims.play('idle_ult', true);
-          } else {
-            this.player.anims.play('idle', true);
-          }
-        }
-      });
-    }
-    
-    // Actualizar barra de vida
-    const healthPercent = this.player.hp / this.player.maxHp;
-    this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
-    
-    // Cambiar color según la vida
-    if (healthPercent > 0.6) {
-      this.playerHealthBar.fillColor = 0x00ff00; // Verde
-    } else if (healthPercent > 0.3) {
-      this.playerHealthBar.fillColor = 0xffff00; // Amarillo
-    } else {
-      this.playerHealthBar.fillColor = 0xff0000; // Rojo
-    }
+    });
   }
+
+  // Actualizar barra de vida
+  const healthPercent = this.player.hp / this.player.maxHp;
+  this.playerHealthBar.width = this.HEALTH_BAR_WIDTH * healthPercent;
+
+  // Cambiar color según la vida
+  if (healthPercent > 0.6) {
+    this.playerHealthBar.fillColor = 0x00ff00; // Verde
+  } else if (healthPercent > 0.3) {
+    this.playerHealthBar.fillColor = 0xffff00; // Amarillo
+  } else {
+    this.playerHealthBar.fillColor = 0xff0000; // Rojo
+  }
+}
 
   usePotion() {
     if (!this.hasPotion) return;
