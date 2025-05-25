@@ -52,7 +52,7 @@
           </div>
           <div class="control-item">
             <span class="key">R</span>
-            <span class="description">Ultimate (cuando esté cargada)</span>
+            <span class="description">Ultimate (barra amarilla)</span>
           </div>
         </div>
           <div class="controls-section">
